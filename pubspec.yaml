@@ -1,0 +1,41 @@
+name: bezerra_ranch_app
+description: App offline (Bezerra Ranch) - Rotinas (Nascimento) com controle de CRIAs por usuario.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  intl: ^0.19.0
+  crypto: ^3.0.3
+  url_launcher: ^6.3.0
+  path_provider: ^2.1.4
+  image_picker: ^0.8.7+5
+  share_plus: ^10.0.2
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+  supabase_flutter: ^2.0.0
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/BRC_icone.png"
+  adaptive_icon_background: "#45A625"
+  adaptive_icon_foreground: "assets/BRC_icone.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

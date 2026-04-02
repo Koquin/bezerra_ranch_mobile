@@ -1,0 +1,18 @@
+const List<String> kFazendas = [
+  'Barracão',
+  'Boa Esperança',
+  'Boa Esperanca III',
+  'Fazenda Camparino',
+  'Fazenda Coroatá',
+  'Fazenda Jenipapo',
+  'Imperatriz (aluguel)',
+  'Imperial I',
+  'Imperial II',
+  'Inacio - Aluguel de Pasto',
+  'Maria de Jesus',
+  'Properidade I',
+  'Properidade II',
+  'Prosperidade III',
+  'Santa Ines (Leite)',
+  'Tropa',
+];

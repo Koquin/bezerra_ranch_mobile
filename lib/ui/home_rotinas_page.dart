@@ -1,0 +1,358 @@
+import 'package:flutter/material.dart';
+import '../controllers/sync_controller.dart';
+import '../session/app_session.dart';
+import '../services/token_service.dart';
+import 'fazenda/fazenda_select_page.dart';
+import 'auth/login_page.dart';
+import 'animal/animal_list_page.dart';
+import 'nascimento/nascimento_list_page.dart';
+import 'morte/morte_list_page.dart';
+import 'admin/admin_users_page.dart';
+
+class HomeRotinasPage extends StatefulWidget {
+  const HomeRotinasPage({super.key});
+
+  @override
+  State<HomeRotinasPage> createState() => _HomeRotinasPageState();
+}
+
+class _HomeRotinasPageState extends State<HomeRotinasPage> {
+  final _syncController = SyncController();
+  bool _sincronizando = false;
+
+  Future<void> _garantirFazendaSelecionada() async {
+    if (AppSession.fazendaSelecionada != null &&
+        AppSession.fazendaSelecionada!.trim().isNotEmpty) {
+      return;
+    }
+    if (!mounted) return;
+
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const FazendaSelectPage()),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _garantirFazendaSelecionada();
+    });
+    // Sincronizar automaticamente ao abrir a tela
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sincronizarAutomatico();
+    });
+  }
+
+  Future<void> _sincronizarAutomatico() async {
+    print('🔄 Sincronização automática ao abrir rotinas');
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('🔄 Sincronizando...'),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+    }
+    try {
+      final temConexao = await _syncController.verificarConexao();
+      if (temConexao) {
+        await _syncController.sincronizar();
+        print('✅ Sincronização automática concluída');
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text('✅ Sincronização concluída!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+        }
+      } else {
+        print('⚠️ Sem conexão, sincronização adiada');
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Sem conexão com internet'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+        }
+      }
+    } catch (e) {
+      print('❌ Erro na sincronização automática: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('❌ Erro na sincronização: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+      }
+    }
+  }
+
+  Future<void> _sincronizarManual() async {
+    print('🔄 Sincronização manual iniciada');
+    setState(() => _sincronizando = true);
+
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('🔄 Sincronizando...'),
+              backgroundColor: Colors.blueGrey,
+            ),
+          );
+      }
+      final temConexao = await _syncController.verificarConexao();
+      if (!temConexao) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Sem conexão com internet'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      await _syncController.sincronizar();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Sincronização concluída!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('❌ Erro na sincronização manual: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erro na sincronização: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sincronizando = false);
+    }
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    print('Entrou no _logout do HomeRotinasPage');
+    await TokenService.limparToken();
+    AppSession.clear();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (_) => false,
+    );
+  }
+
+  Widget _card({
+    required BuildContext context,
+    required String title,
+    required String assetName,
+    required bool enabled,
+    bool showOpenLabel = false,
+    VoidCallback? onTap,
+  }) {
+    print('Entrou no _card do HomeRotinasPage, title=$title, enabled=$enabled');
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.4,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Center(
+                  child: Image.asset(
+                    assetName,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              if (!enabled)
+                const Text('Em breve',
+                    style: TextStyle(fontSize: 12, color: Colors.black54))
+              else if (showOpenLabel)
+                const Text('Abrir',
+                    style: TextStyle(fontSize: 12, color: Colors.black54))
+              else
+                const SizedBox.shrink(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print('Entrou no build do HomeRotinasPage');
+    final nome = AppSession.usuarioNome ?? 'Usuário';
+    final fazenda = AppSession.fazendaSelecionada ?? 'Sem fazenda';
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: 'Mudar fazenda',
+          icon: const Icon(Icons.agriculture),
+          onPressed: () async {
+            final mudou = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const FazendaSelectPage(voltarAposSelecionar: true),
+              ),
+            );
+            if (mudou == true && mounted) {
+              setState(() {});
+            }
+          },
+        ),
+        title: Text('Rotinas • $nome • $fazenda'),
+        actions: [
+          if (AppSession.isAdmin)
+            IconButton(
+              tooltip: 'Admin',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminUsersPage()),
+              ),
+              icon: const Icon(Icons.admin_panel_settings),
+            ),
+          IconButton(
+            tooltip: 'Sincronizar com Nuvem',
+            onPressed: _sincronizando ? null : _sincronizarManual,
+            icon: _sincronizando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.cloud_upload),
+          ),
+          IconButton(
+            tooltip: 'Sair',
+            onPressed: () => _logout(context),
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Menu',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.2,
+                  children: [
+                    _card(
+                      context: context,
+                      title: 'Nascimento',
+                      assetName: 'assets/calf_born_add.png',
+                      enabled: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const NascimentoListPage()),
+                      ),
+                    ),
+                    _card(
+                      context: context,
+                      title: 'Morte',
+                      assetName: 'assets/calf_born_death.png',
+                      enabled: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const MorteListPage()),
+                      ),
+                    ),
+                    _card(
+                      context: context,
+                      title: 'Transferência',
+                      assetName: 'assets/transfer.jpeg',
+                      enabled: false,
+                    ),
+                    _card(
+                      context: context,
+                      title: 'Vacina',
+                      assetName: 'assets/vaccine.png',
+                      enabled: false,
+                    ),
+                    _card(
+                      context: context,
+                      title: 'Pesagem',
+                      assetName: 'assets/weighing_scale.png',
+                      enabled: false,
+                    ),
+                    _card(
+                      context: context,
+                      title: 'Venda',
+                      assetName: 'assets/cow_skull_sell.png',
+                      enabled: false,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: AppSession.isAdmin
+          ? FloatingActionButton(
+              tooltip: 'Animais',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AnimalListPage()),
+              ),
+              child: const Icon(Icons.pets),
+            )
+          : null,
+    );
+  }
+}
