@@ -7,6 +7,7 @@ import 'auth/login_page.dart';
 import 'animal/animal_list_page.dart';
 import 'nascimento/nascimento_list_page.dart';
 import 'morte/morte_list_page.dart';
+import 'transferencia/transferencia_page.dart';
 import 'admin/admin_users_page.dart';
 
 class HomeRotinasPage extends StatefulWidget {
@@ -46,7 +47,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
   }
 
   Future<void> _sincronizarAutomatico() async {
-    print('🔄 Sincronização automática ao abrir rotinas');
     if (mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -61,7 +61,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
       final temConexao = await _syncController.verificarConexao();
       if (temConexao) {
         await _syncController.sincronizar();
-        print('✅ Sincronização automática concluída');
         if (mounted) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
@@ -73,7 +72,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
             );
         }
       } else {
-        print('⚠️ Sem conexão, sincronização adiada');
         if (mounted) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
@@ -86,7 +84,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
         }
       }
     } catch (e) {
-      print('❌ Erro na sincronização automática: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -101,7 +98,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
   }
 
   Future<void> _sincronizarManual() async {
-    print('🔄 Sincronização manual iniciada');
     setState(() => _sincronizando = true);
 
     try {
@@ -137,7 +133,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
         ),
       );
     } catch (e) {
-      print('❌ Erro na sincronização manual: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -150,8 +145,7 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
     }
   }
 
-  Future<void> _logout(BuildContext context) async {
-    print('Entrou no _logout do HomeRotinasPage');
+  Future<void> _logout() async {
     await TokenService.limparToken();
     AppSession.clear();
     if (!mounted) return;
@@ -170,7 +164,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
     bool showOpenLabel = false,
     VoidCallback? onTap,
   }) {
-    print('Entrou no _card do HomeRotinasPage, title=$title, enabled=$enabled');
     return InkWell(
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(16),
@@ -220,7 +213,6 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('Entrou no build do HomeRotinasPage');
     final nome = AppSession.usuarioNome ?? 'Usuário';
     final fazenda = AppSession.fazendaSelecionada ?? 'Sem fazenda';
     return Scaffold(
@@ -269,7 +261,7 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
           ),
           IconButton(
             tooltip: 'Sair',
-            onPressed: () => _logout(context),
+            onPressed: _logout,
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -316,7 +308,12 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
                       context: context,
                       title: 'Transferência',
                       assetName: 'assets/transfer.jpeg',
-                      enabled: false,
+                      enabled: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const TransferenciaPage()),
+                      ),
                     ),
                     _card(
                       context: context,
@@ -343,16 +340,14 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
           ),
         ),
       ),
-      floatingActionButton: AppSession.isAdmin
-          ? FloatingActionButton(
-              tooltip: 'Animais',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AnimalListPage()),
-              ),
-              child: const Icon(Icons.pets),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Animais',
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AnimalListPage()),
+        ),
+        child: const Icon(Icons.pets),
+      ),
     );
   }
 }

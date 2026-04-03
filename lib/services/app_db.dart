@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -15,7 +16,7 @@ class AppDb {
 
     _db = await openDatabase(
       path,
-      version: 10,
+      version: 12,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE usuario (
@@ -44,6 +45,8 @@ class AppDb {
             pelagem TEXT NOT NULL,
             data_nascimento TEXT NOT NULL,
             fazenda TEXT NOT NULL,
+            lote TEXT,
+            pasto TEXT,
             observacao TEXT,
             foto1 TEXT,
             foto2 TEXT,
@@ -71,6 +74,8 @@ class AppDb {
             pelagem TEXT NOT NULL,
             data_nascimento TEXT NOT NULL,
             fazenda TEXT NOT NULL,
+            lote TEXT,
+            pasto TEXT,
             observacao TEXT,
             foto1 TEXT,
             foto2 TEXT,
@@ -87,7 +92,7 @@ class AppDb {
         ''');
 
         await db.execute('''
-          CREATE TABLE morte (
+          CREATE TABLE morte_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nascimento_id INTEGER NOT NULL,
             data_morte TEXT NOT NULL,
@@ -123,9 +128,30 @@ class AppDb {
           );
         ''');
 
-        // Seed: usuário admin padrão
-        // login: admin | senha: admin123
-        final adminHash = sha256.convert(utf8.encode('admin123')).toString();
+        await db.execute('''
+          CREATE TABLE transferencia_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            animal_id INTEGER NOT NULL,
+            fazenda_origem TEXT NOT NULL,
+            fazenda_destino TEXT NOT NULL,
+            lote_origem TEXT,
+            lote_destino TEXT,
+            pasto_origem TEXT,
+            pasto_destino TEXT,
+            usuario_id INTEGER NOT NULL,
+            data_transferencia TEXT NOT NULL,
+            data_registro TEXT NOT NULL,
+            atualizado_em TEXT,
+            FOREIGN KEY(animal_id) REFERENCES animal(id)
+          );
+        ''');
+
+        // Seed: usuário admin padrão (senha vinda do .env)
+        final adminPassword = dotenv.env['ADMIN_DEFAULT_PASSWORD'];
+        if (adminPassword == null || adminPassword.trim().isEmpty) {
+          throw StateError('ADMIN_DEFAULT_PASSWORD não definido no .env');
+        }
+        final adminHash = sha256.convert(utf8.encode(adminPassword)).toString();
 
         await db.insert('usuario', {
           'nome': 'Administrador',
@@ -286,6 +312,39 @@ class AppDb {
           if (hasStatusAfter && hasMortoAfter) {
             await db.execute(
                 "UPDATE animal SET status = CASE WHEN IFNULL(morto, 0) = 1 THEN 'MORTO' ELSE status END;");
+          }
+        }
+        if (oldVersion < 11) {
+          await db.execute("ALTER TABLE animal ADD COLUMN lote TEXT;");
+          await db.execute("ALTER TABLE animal ADD COLUMN pasto TEXT;");
+          await db.execute("ALTER TABLE nascimento_log ADD COLUMN lote TEXT;");
+          await db.execute("ALTER TABLE nascimento_log ADD COLUMN pasto TEXT;");
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS transferencia_log (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              animal_id INTEGER NOT NULL,
+              fazenda_origem TEXT NOT NULL,
+              fazenda_destino TEXT NOT NULL,
+              lote_origem TEXT,
+              lote_destino TEXT,
+              pasto_origem TEXT,
+              pasto_destino TEXT,
+              usuario_id INTEGER NOT NULL,
+              data_transferencia TEXT NOT NULL,
+              data_registro TEXT NOT NULL,
+              atualizado_em TEXT,
+              FOREIGN KEY(animal_id) REFERENCES animal(id)
+            );
+          ''');
+        }
+        if (oldVersion < 12) {
+          final tables = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('morte','morte_log')");
+          final hasMorte = tables.any((t) => t['name'] == 'morte');
+          final hasMorteLog = tables.any((t) => t['name'] == 'morte_log');
+          if (hasMorte && !hasMorteLog) {
+            await db.execute("ALTER TABLE morte RENAME TO morte_log;");
           }
         }
       },

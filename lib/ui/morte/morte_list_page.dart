@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/app_runtime_config.dart';
 import '../../controllers/animal_controller.dart';
 import '../../controllers/morte_controller.dart';
 import '../../services/export_service.dart';
@@ -19,8 +20,6 @@ class MorteListPage extends StatefulWidget {
 }
 
 class _MorteListPageState extends State<MorteListPage> {
-  static const String _dropboxRequest =
-      'https://www.dropbox.com/request/DVjbvzFK1nLnJAPhOsgV';
   final _export = ExportService();
   final _morteController = MorteController();
 
@@ -31,9 +30,9 @@ class _MorteListPageState extends State<MorteListPage> {
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
-            'Base de Mortes (CSV). Envie no link do Dropbox: $_dropboxRequest',
+            'Base de Mortes (CSV). Envie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
       );
-      await launchUrl(Uri.parse(_dropboxRequest),
+      await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
           mode: LaunchMode.externalApplication);
     } catch (e) {
       if (!mounted) return;
@@ -123,11 +122,31 @@ class _MorteListPageState extends State<MorteListPage> {
     print('Entrou no _load do MorteListPage, q=$q');
     setState(() => _loading = true);
     final list = await _animalController.list(q: q);
+    final mortos =
+        list.where((n) => n.status == Nascimento.statusMorto).toList();
     if (!mounted) return;
     setState(() {
-      _items = list;
+      _items = mortos;
       _loading = false;
     });
+  }
+
+  Future<void> _abrirSeletorAnimais() async {
+    final selecionado = await Navigator.push<Nascimento>(
+      context,
+      MaterialPageRoute(builder: (_) => const _SelecionarAnimalPage()),
+    );
+    if (!mounted || selecionado == null) return;
+
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MorteFormPage(nascimento: selecionado),
+      ),
+    );
+    if (result == true) {
+      await _load(q: _search.text);
+    }
   }
 
   @override
@@ -152,6 +171,7 @@ class _MorteListPageState extends State<MorteListPage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
                 controller: _search,
+                onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
                   labelText: 'Pesquisar',
                   suffixIcon: IconButton(
@@ -172,7 +192,7 @@ class _MorteListPageState extends State<MorteListPage> {
                   border: Border.all(color: Colors.black12),
                 ),
                 child: Text(
-                  'Total de CRIAs: ${_items.length}',
+                  'Total de animais mortos: ${_items.length}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: Colors.black87,
@@ -213,47 +233,21 @@ class _MorteListPageState extends State<MorteListPage> {
                                     _editarMorte(n);
                                   } else if (value == 'deletar') {
                                     _deletarMorte(n);
-                                  } else if (value == 'registrar') {
-                                    final result = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            MorteFormPage(nascimento: n),
-                                      ),
-                                    );
-                                    if (result == true) _load(q: _search.text);
                                   }
                                 },
-                                itemBuilder: (context) {
-                                  final items = <PopupMenuItem<String>>[];
-
-                                  if (n.morto) {
-                                    items.add(
-                                      const PopupMenuItem(
-                                        value: 'editar',
-                                        child: Text('Editar'),
-                                      ),
-                                    );
-                                    items.add(
-                                      const PopupMenuItem(
-                                        value: 'deletar',
-                                        child: Text(
-                                          'Deletar',
-                                          style: TextStyle(color: Colors.red),
-                                        ),
-                                      ),
-                                    );
-                                  } else {
-                                    items.add(
-                                      const PopupMenuItem(
-                                        value: 'registrar',
-                                        child: Text('Registrar morte'),
-                                      ),
-                                    );
-                                  }
-
-                                  return items;
-                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'editar',
+                                    child: Text('Editar'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'deletar',
+                                    child: Text(
+                                      'Deletar',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
                               ), // end PopupMenuButton
                               onTap: () async {
                                 final result = await Navigator.push(
@@ -261,7 +255,7 @@ class _MorteListPageState extends State<MorteListPage> {
                                   MaterialPageRoute(
                                     builder: (_) => MorteFormPage(
                                       nascimento: n,
-                                      readOnly: n.morto,
+                                      readOnly: false,
                                     ),
                                   ),
                                 );
@@ -274,6 +268,117 @@ class _MorteListPageState extends State<MorteListPage> {
           ], // end Padding (Total de CRIAs)
         ), // end Column
       ), // end SafeArea
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Registrar morte',
+        onPressed: _abrirSeletorAnimais,
+        child: const Icon(Icons.add),
+      ),
     ); // end Scaffold
+  }
+}
+
+class _SelecionarAnimalPage extends StatefulWidget {
+  const _SelecionarAnimalPage();
+
+  @override
+  State<_SelecionarAnimalPage> createState() => _SelecionarAnimalPageState();
+}
+
+class _SelecionarAnimalPageState extends State<_SelecionarAnimalPage> {
+  final _animalController = AnimalController();
+  final _search = TextEditingController();
+  List<Nascimento> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({String? q}) async {
+    setState(() => _loading = true);
+    final list = await _animalController.list(q: q);
+    if (!mounted) return;
+    setState(() {
+      _items = list.where((n) => n.status == Nascimento.statusAtivo).toList();
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Selecionar animal')),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                controller: _search,
+                onChanged: (value) => _load(q: value),
+                decoration: InputDecoration(
+                  labelText: 'Pesquisar',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () => _load(q: _search.text),
+                  ),
+                ),
+                onSubmitted: (_) => _load(q: _search.text),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.black12),
+                ),
+                child: Text(
+                  'Animais disponíveis: ${_items.length}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _items.isEmpty
+                      ? const Center(child: Text('Nenhum animal disponível.'))
+                      : ListView.separated(
+                          itemCount: _items.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final n = _items[i];
+                            return ListTile(
+                              leading: const Icon(Icons.pets),
+                              title: Text(n.cria,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w900)),
+                              subtitle: Text(
+                                  'Mãe: ${n.mae} • ${n.sexo} • ${n.fazenda}'),
+                              onTap: () => Navigator.pop(context, n),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -179,8 +179,8 @@ CREATE POLICY "Permitir delete para anon" ON solicitacao_faixa
     FOR DELETE USING (true);
 
 -- Inserir usuário admin padrão
--- login: admin | senha: admin123
--- Hash SHA-256 de 'admin123': 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
+-- login: admin | senha definida fora do código (via variável de ambiente)
+-- Hash SHA-256 usado no seed inicial: 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
 INSERT INTO usuario (nome, login, senha_hash, ativo, cria_prefixo, cria_inicio, cria_max, is_admin)
 VALUES ('Administrador', 'admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', true, 'E', 10, 1000, true)
 ON CONFLICT (login) DO NOTHING;

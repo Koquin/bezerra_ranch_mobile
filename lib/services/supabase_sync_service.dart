@@ -22,6 +22,7 @@ class SupabaseSyncService {
       await baixarAnimais();
       await baixarNascimentosLog();
       await sincronizarAnimalENascimentoLogLocal();
+      await baixarTransferencias();
       await baixarMortes();
       await baixarSolicitacoes();
 
@@ -32,6 +33,7 @@ class SupabaseSyncService {
       await sincronizarAnimais();
       await sincronizarNascimentosLog();
       await sincronizarAnimalENascimentoLogLocal();
+      await sincronizarTransferencias();
       await sincronizarMortes();
       await sincronizarSolicitacoes();
 
@@ -117,6 +119,8 @@ class SupabaseSyncService {
           'pelagem': n['pelagem'],
           'data_nascimento': n['data_nascimento'],
           'fazenda': n['fazenda'],
+          'lote': n['lote'],
+          'pasto': n['pasto'],
           'observacao': n['observacao'],
           'foto1': n['foto1'],
           'foto2': n['foto2'],
@@ -164,6 +168,8 @@ class SupabaseSyncService {
           'pelagem': l['pelagem'],
           'data_nascimento': l['data_nascimento'],
           'fazenda': l['fazenda'],
+          'lote': l['lote'],
+          'pasto': l['pasto'],
           'observacao': l['observacao'],
           'foto1': l['foto1'],
           'foto2': l['foto2'],
@@ -221,6 +227,8 @@ class SupabaseSyncService {
             'pelagem': log['pelagem'],
             'data_nascimento': log['data_nascimento'],
             'fazenda': log['fazenda'],
+            'lote': log['lote'],
+            'pasto': log['pasto'],
             'observacao': log['observacao'],
             'foto1': log['foto1'],
             'foto2': log['foto2'],
@@ -251,6 +259,8 @@ class SupabaseSyncService {
             'pelagem': animal['pelagem'],
             'data_nascimento': animal['data_nascimento'],
             'fazenda': animal['fazenda'],
+            'lote': animal['lote'],
+            'pasto': animal['pasto'],
             'observacao': animal['observacao'],
             'foto1': animal['foto1'],
             'foto2': animal['foto2'],
@@ -290,6 +300,8 @@ class SupabaseSyncService {
               'pelagem': log['pelagem'],
               'data_nascimento': log['data_nascimento'],
               'fazenda': log['fazenda'],
+              'lote': log['lote'],
+              'pasto': log['pasto'],
               'observacao': log['observacao'],
               'foto1': log['foto1'],
               'foto2': log['foto2'],
@@ -326,6 +338,8 @@ class SupabaseSyncService {
               'pelagem': animal['pelagem'],
               'data_nascimento': animal['data_nascimento'],
               'fazenda': animal['fazenda'],
+              'lote': animal['lote'],
+              'pasto': animal['pasto'],
               'observacao': animal['observacao'],
               'foto1': animal['foto1'],
               'foto2': animal['foto2'],
@@ -352,7 +366,7 @@ class SupabaseSyncService {
   static Future<void> sincronizarMortes() async {
     print('📤 Sincronizando mortes...');
     final db = await AppDb.getDb();
-    final mortes = await db.query('morte');
+    final mortes = await db.query('morte_log');
 
     for (final m in mortes) {
       try {
@@ -388,9 +402,41 @@ class SupabaseSyncService {
           'atualizado_em': m['atualizado_em'],
         };
 
-        await _supabase.from('morte').upsert(dados, onConflict: 'id');
+        await _supabase.from('morte_log').upsert(dados, onConflict: 'id');
       } catch (e) {
         print('✗ Erro ao sincronizar morte ${m['id']}: $e');
+      }
+    }
+  }
+
+  // Sincronizar transferências
+  static Future<void> sincronizarTransferencias() async {
+    print('📤 Sincronizando transferências...');
+    final db = await AppDb.getDb();
+    final transferencias = await db.query('transferencia_log');
+
+    for (final t in transferencias) {
+      try {
+        final dados = {
+          'id': t['id'],
+          'animal_id': t['animal_id'],
+          'fazenda_origem': t['fazenda_origem'],
+          'fazenda_destino': t['fazenda_destino'],
+          'lote_origem': t['lote_origem'],
+          'lote_destino': t['lote_destino'],
+          'pasto_origem': t['pasto_origem'],
+          'pasto_destino': t['pasto_destino'],
+          'usuario_id': t['usuario_id'],
+          'data_transferencia': t['data_transferencia'],
+          'data_registro': t['data_registro'],
+          'atualizado_em': t['atualizado_em'],
+        };
+
+        await _supabase
+            .from('transferencia_log')
+            .upsert(dados, onConflict: 'id');
+      } catch (e) {
+        print('✗ Erro ao sincronizar transferencia ${t['id']}: $e');
       }
     }
   }
@@ -542,6 +588,8 @@ class SupabaseSyncService {
             'pelagem': n['pelagem'],
             'data_nascimento': n['data_nascimento'],
             'fazenda': n['fazenda'],
+            'lote': n['lote'],
+            'pasto': n['pasto'],
             'observacao': n['observacao'],
             'foto1': n['foto1'],
             'foto2': n['foto2'],
@@ -607,6 +655,8 @@ class SupabaseSyncService {
             'pelagem': l['pelagem'],
             'data_nascimento': l['data_nascimento'],
             'fazenda': l['fazenda'],
+            'lote': l['lote'],
+            'pasto': l['pasto'],
             'observacao': l['observacao'],
             'foto1': l['foto1'],
             'foto2': l['foto2'],
@@ -647,7 +697,7 @@ class SupabaseSyncService {
     try {
       final db = await AppDb.getDb();
       final response = await _supabase
-          .from('morte')
+          .from('morte_log')
           .select()
           .order('atualizado_em', ascending: false);
 
@@ -655,8 +705,8 @@ class SupabaseSyncService {
 
       for (final m in mortes) {
         try {
-          final local =
-              await db.query('morte', where: 'id = ?', whereArgs: [m['id']]);
+          final local = await db
+              .query('morte_log', where: 'id = ?', whereArgs: [m['id']]);
 
           final dados = {
             'id': m['id'],
@@ -678,7 +728,7 @@ class SupabaseSyncService {
           };
 
           if (local.isEmpty) {
-            await db.insert('morte', dados);
+            await db.insert('morte_log', dados);
           } else {
             final timestampLocal = (local.first['atualizado_em'] as String?) ??
                 (local.first['criado_em'] as String?);
@@ -687,7 +737,7 @@ class SupabaseSyncService {
             if (timestampRemoto != null &&
                 (timestampLocal == null ||
                     timestampRemoto.compareTo(timestampLocal) > 0)) {
-              await db.update('morte', dados,
+              await db.update('morte_log', dados,
                   where: 'id = ?', whereArgs: [m['id']]);
             }
           }
@@ -698,6 +748,53 @@ class SupabaseSyncService {
       print('✅ Download de mortes concluído');
     } catch (e) {
       print('❌ Erro ao baixar mortes: $e');
+    }
+  }
+
+  // Baixar transferências da nuvem
+  static Future<void> baixarTransferencias() async {
+    print('📥 Baixando transferências da nuvem...');
+    try {
+      final db = await AppDb.getDb();
+      final response = await _supabase
+          .from('transferencia_log')
+          .select()
+          .order('data_registro', ascending: false);
+
+      final transferencias = response as List<dynamic>;
+      for (final t in transferencias) {
+        try {
+          final local = await db.query('transferencia_log',
+              where: 'id = ?', whereArgs: [t['id']]);
+
+          final dados = {
+            'id': t['id'],
+            'animal_id': t['animal_id'],
+            'fazenda_origem': t['fazenda_origem'],
+            'fazenda_destino': t['fazenda_destino'],
+            'lote_origem': t['lote_origem'],
+            'lote_destino': t['lote_destino'],
+            'pasto_origem': t['pasto_origem'],
+            'pasto_destino': t['pasto_destino'],
+            'usuario_id': t['usuario_id'],
+            'data_transferencia': t['data_transferencia'],
+            'data_registro': t['data_registro'],
+            'atualizado_em': t['atualizado_em'],
+          };
+
+          if (local.isEmpty) {
+            await db.insert('transferencia_log', dados);
+          } else {
+            await db.update('transferencia_log', dados,
+                where: 'id = ?', whereArgs: [t['id']]);
+          }
+        } catch (e) {
+          print('✗ Erro ao processar transferencia ${t['id']}: $e');
+        }
+      }
+      print('✅ Download de transferências concluído');
+    } catch (e) {
+      print('❌ Erro ao baixar transferências: $e');
     }
   }
 
@@ -786,6 +883,7 @@ class SupabaseSyncService {
     await baixarUsuarios();
     await baixarAnimais();
     await baixarNascimentosLog();
+    await baixarTransferencias();
     await baixarMortes();
     await baixarSolicitacoes();
 
@@ -798,11 +896,14 @@ class SupabaseSyncService {
         .from('app_config')
         .select('value')
         .eq('key', 'sync_version')
-        .single();
+        .maybeSingle();
 
-    final value = response['value']?.toString();
+    final value = response?['value']?.toString();
     if (value == null || value.isEmpty) {
-      throw Exception('sync_version não encontrado em app_config');
+      // Fallback seguro para ambientes sem app_config/sync_version.
+      print(
+          '⚠️ sync_version não encontrado em app_config. Usando versão padrão "1".');
+      return '1';
     }
     return value;
   }
@@ -810,9 +911,10 @@ class SupabaseSyncService {
   static Future<void> _limparDadosLocais() async {
     final db = await AppDb.getDb();
     await db.transaction((txn) async {
-      await txn.delete('morte');
+      await txn.delete('morte_log');
       await txn.delete('nascimento_log');
       await txn.delete('animal');
+      await txn.delete('transferencia_log');
       await txn.delete('solicitacao_faixa');
       await txn.delete('usuario');
     });
@@ -856,7 +958,7 @@ class SupabaseSyncService {
           where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('nascimento_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
-      await txn.update('morte', {'usuario_id': serverId},
+      await txn.update('morte_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('solicitacao_faixa', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
@@ -893,7 +995,7 @@ class SupabaseSyncService {
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('nascimento_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
-            await txn.update('morte', {'usuario_id': fallbackId},
+            await txn.update('morte_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('solicitacao_faixa', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);

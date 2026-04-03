@@ -12,6 +12,8 @@ class Nascimento {
   final String pelagem;
   final DateTime dataNascimento;
   final String fazenda;
+  final String? lote;
+  final String? pasto;
   final String? observacao;
   final String? foto1;
   final String? foto2;
@@ -35,6 +37,8 @@ class Nascimento {
     required this.pelagem,
     required this.dataNascimento,
     required this.fazenda,
+    this.lote,
+    this.pasto,
     this.observacao,
     this.foto1,
     this.foto2,
@@ -65,6 +69,8 @@ class Nascimento {
         'pelagem': pelagem,
         'data_nascimento': dataNascimento.toIso8601String(),
         'fazenda': fazenda,
+        'lote': lote,
+        'pasto': pasto,
         'observacao': observacao,
         'foto1': foto1,
         'foto2': foto2,
@@ -89,6 +95,8 @@ class Nascimento {
         pelagem: m['pelagem'] as String,
         dataNascimento: DateTime.parse(m['data_nascimento'] as String),
         fazenda: m['fazenda'] as String,
+        lote: m['lote'] as String?,
+        pasto: m['pasto'] as String?,
         observacao: m['observacao'] as String?,
         foto1: m['foto1'] as String?,
         foto2: m['foto2'] as String?,

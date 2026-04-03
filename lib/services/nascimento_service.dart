@@ -33,7 +33,7 @@ class NascimentoService {
     String? q,
   }) async {
     print(
-        '[NascimentoService.listPorFaixa] prefixo=$prefixo inicio=$inicio maximo=$maximo');
+        '[NascimentoService.listPorFaixa] prefixo=$prefixo inicio=$inicio maximo=$maximo q=$q');
     final db = await AppDb.getDb();
     String baseWhere =
         'UPPER(TRIM(cria)) LIKE UPPER(TRIM(?)) AND CAST(SUBSTR(TRIM(cria), LENGTH(TRIM(?)) + 1) AS INTEGER) BETWEEN ? AND ?';
@@ -41,6 +41,13 @@ class NascimentoService {
 
     String faixaWhere = baseWhere;
     final List<Object?> whereArgs = [...baseArgs];
+
+    if (q != null && q.trim().isNotEmpty) {
+      final term = '%${q.trim()}%';
+      faixaWhere +=
+          ' AND (cria LIKE ? OR mae LIKE ? OR fazenda LIKE ? OR raca LIKE ? OR pelagem LIKE ? OR sexo LIKE ?)';
+      whereArgs.addAll([term, term, term, term, term, term]);
+    }
 
     final rows = await db.query(
       'nascimento_log',

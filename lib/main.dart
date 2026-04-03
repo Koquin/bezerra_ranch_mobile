@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_theme.dart';
 import 'ui/auth/login_page.dart';
@@ -11,6 +12,8 @@ import 'session/app_session.dart';
 void main() async {
   print('Entrou no main');
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: '.env');
 
   // Inicializar Supabase
   try {

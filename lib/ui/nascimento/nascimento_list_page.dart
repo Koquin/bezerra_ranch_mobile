@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/app_runtime_config.dart';
 import '../../controllers/nascimento_controller.dart';
 import '../../controllers/solicitacao_controller.dart';
 import '../../session/app_session.dart';
@@ -25,10 +26,6 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
   List<Nascimento> _items = [];
   bool _loading = true;
   int _restantes = 0;
-
-  static const String _adminWhatsAppE164 = '559999536677';
-  static const String _dropboxRequest =
-      'https://www.dropbox.com/request/DVjbvzFK1nLnJAPhOsgV';
 
   @override
   void initState() {
@@ -106,9 +103,9 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
-            'Base de Nascimentos (CSV).\nEnvie no link do Dropbox: $_dropboxRequest',
+            'Base de Nascimentos (CSV).\nEnvie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
       );
-      await launchUrl(Uri.parse(_dropboxRequest),
+      await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
           mode: LaunchMode.externalApplication);
     } catch (e) {
       if (!mounted) return;
@@ -191,7 +188,7 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
           'Solicito ampliação do limite.';
 
       final uri = Uri.parse(
-          'https://wa.me/$_adminWhatsAppE164?text=${Uri.encodeComponent(msg)}');
+          'https://wa.me/${AppRuntimeConfig.adminWhatsAppE164}?text=${Uri.encodeComponent(msg)}');
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
       if (!mounted) return;
@@ -241,6 +238,7 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
                 controller: _search,
+                onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
                   labelText: 'Pesquisar',
                   suffixIcon: IconButton(

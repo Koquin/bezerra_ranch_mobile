@@ -58,6 +58,7 @@ class _AnimalListPageState extends State<AnimalListPage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
                 controller: _search,
+                onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
                   labelText: 'Pesquisar',
                   suffixIcon: IconButton(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_runtime_config.dart';
 import '../../controllers/usuario_controller.dart';
 import '../../controllers/solicitacao_controller.dart';
 import '../../session/app_session.dart';
@@ -24,9 +25,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   List<Usuario> _items = [];
   bool _loading = true;
   int _pendentes = 0;
-
-  static const String _dropboxRequest =
-      'https://www.dropbox.com/request/DVjbvzFK1nLnJAPhOsgV';
 
   @override
   void initState() {
@@ -77,9 +75,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
-            'Base de Usuários (CSV).\nEnvie no link do Dropbox: $_dropboxRequest',
+            'Base de Usuários (CSV).\nEnvie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
       );
-      await launchUrl(Uri.parse(_dropboxRequest),
+      await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
           mode: LaunchMode.externalApplication);
     } catch (e) {
       if (!mounted) return;

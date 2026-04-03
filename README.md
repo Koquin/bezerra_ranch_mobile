@@ -1,45 +1,29 @@
-# Bezerra Ranch App (Offline)
+# Bezerra Ranch App
 
-App Flutter offline para coleta de dados de **Nascimento de Bezerros**, com:
+Aplicativo Flutter para gestão de rotina pecuária, com foco em operação simples no dia a dia.
 
-- Login por usuário
-- **CRIA automática** por usuário (prefixo + sequência), com faixa (início/máximo) travada
-- Bloqueio quando atingir limite (mensagem: "Limite atingido. Procure o Admin.")
-- Contador de CRIAs restantes
-- Solicitação de liberação de nova faixa via **WhatsApp** + registro local
-- Tela Admin:
-  - Cadastro/edição de usuários e faixas
-  - Solicitações com filtro, export CSV, badge, prioridade (<= 10)
+## O que o app faz
 
-## Configurações rápidas
+- Login de usuários
+- Rotinas de nascimento, morte, transferência, e outras por vir.
+- Cadastro e consulta de animais
+- Sincronização com Supabase
 
-- WhatsApp do Admin (padrão no código): `+55 99 99953-6677`
-- Link de envio Dropbox (padrão): `https://www.dropbox.com/request/DVjbvzFK1nLnJAPhOsgV`
+## Configuração rápida
 
-Edite em:
-- `lib/ui/nascimento/nascimento_list_page.dart`
+1. Crie um arquivo `.env` com base em `.env.example`.
+2. Preencha as variáveis necessárias (Supabase e configurações do projeto).
 
-## Como rodar
-
-1) Instale Flutter + Android Studio
-2) No terminal, dentro desta pasta:
+## Rodar localmente
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-## APK
+## Build Android
 
 ```bash
 flutter build apk --release
 ```
-
-Saída:
-`build/app/outputs/flutter-apk/app-release.apk`
-
-## Login padrão (seed)
-
-- usuário: `admin`
-- senha: `admin123`
 

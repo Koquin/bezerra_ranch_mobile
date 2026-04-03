@@ -2,8 +2,19 @@ import 'app_db.dart';
 import '../models/nascimento.dart';
 
 class AnimalService {
+  Future<Nascimento?> getById(int id) async {
+    final db = await AppDb.getDb();
+    final rows = await db.query(
+      'animal',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Nascimento.fromMap(rows.first);
+  }
+
   Future<Nascimento?> getByCria(String cria) async {
-    print('[AnimalService.getByCria] cria=$cria');
     final db = await AppDb.getDb();
     final rows = await db.query(
       'animal',
@@ -12,25 +23,17 @@ class AnimalService {
       limit: 1,
     );
     if (rows.isEmpty) {
-      print('[AnimalService.getByCria] nao encontrado');
       return null;
     }
-    final animal = Nascimento.fromMap(rows.first);
-    print(
-        '[AnimalService.getByCria] encontrado id=${animal.id} sexo=${animal.sexo} fazenda=${animal.fazenda} status=${animal.status}');
-    return animal;
+    return Nascimento.fromMap(rows.first);
   }
 
   Future<List<Nascimento>> list({String? q}) async {
-    print('Entrou no list do AnimalService, q=$q');
     final db = await AppDb.getDb();
 
     if (q == null || q.trim().isEmpty) {
       final rows = await db.query('animal', orderBy: 'criado_em DESC');
-      final result = rows.map(Nascimento.fromMap).toList();
-      print(
-          'AnimalService.list retornou ${result.length} registros (sem filtro).');
-      return result;
+      return rows.map(Nascimento.fromMap).toList();
     }
 
     final term = '%${q.trim()}%';
@@ -41,9 +44,11 @@ class AnimalService {
       whereArgs: [term, term, term, term, term, term],
       orderBy: 'criado_em DESC',
     );
-    final result = rows.map(Nascimento.fromMap).toList();
-    print(
-        'AnimalService.list retornou ${result.length} registros (com filtro).');
-    return result;
+    return rows.map(Nascimento.fromMap).toList();
+  }
+
+  Future<List<Nascimento>> listVivos({String? q}) async {
+    final listAll = await list(q: q);
+    return listAll.where((n) => n.status == Nascimento.statusAtivo).toList();
   }
 }
