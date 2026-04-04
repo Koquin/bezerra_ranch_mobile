@@ -7,7 +7,7 @@ import 'auth/login_page.dart';
 import 'animal/animal_list_page.dart';
 import 'nascimento/nascimento_list_page.dart';
 import 'morte/morte_list_page.dart';
-import 'transferencia/transferencia_page.dart';
+import 'transferencia/transferencia_list_page.dart';
 import 'admin/admin_users_page.dart';
 
 class HomeRotinasPage extends StatefulWidget {
@@ -312,7 +312,7 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const TransferenciaPage()),
+                            builder: (_) => const TransferenciaListPage()),
                       ),
                     ),
                     _card(

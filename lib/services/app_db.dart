@@ -7,6 +7,19 @@ import 'package:sqflite/sqflite.dart';
 class AppDb {
   static Database? _db;
 
+  static Future<void> _garantirColunaIsInconsistency(Database db) async {
+    final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='transferencia_log'");
+    if (tables.isEmpty) return;
+
+    final cols = await db.rawQuery("PRAGMA table_info(transferencia_log);");
+    final hasIsInconsistency = cols.any((c) => c['name'] == 'is_inconsistency');
+    if (!hasIsInconsistency) {
+      await db.execute(
+          "ALTER TABLE transferencia_log ADD COLUMN is_inconsistency INTEGER NOT NULL DEFAULT 0;");
+    }
+  }
+
   static Future<Database> getDb() async {
     print('Entrou no getDb do AppDb');
     if (_db != null) return _db!;
@@ -16,7 +29,10 @@ class AppDb {
 
     _db = await openDatabase(
       path,
-      version: 12,
+      version: 13,
+      onOpen: (db) async {
+        await _garantirColunaIsInconsistency(db);
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE usuario (
@@ -138,6 +154,7 @@ class AppDb {
             lote_destino TEXT,
             pasto_origem TEXT,
             pasto_destino TEXT,
+            is_inconsistency INTEGER NOT NULL DEFAULT 0,
             usuario_id INTEGER NOT NULL,
             data_transferencia TEXT NOT NULL,
             data_registro TEXT NOT NULL,
@@ -330,6 +347,7 @@ class AppDb {
               lote_destino TEXT,
               pasto_origem TEXT,
               pasto_destino TEXT,
+              is_inconsistency INTEGER NOT NULL DEFAULT 0,
               usuario_id INTEGER NOT NULL,
               data_transferencia TEXT NOT NULL,
               data_registro TEXT NOT NULL,
@@ -346,6 +364,9 @@ class AppDb {
           if (hasMorte && !hasMorteLog) {
             await db.execute("ALTER TABLE morte RENAME TO morte_log;");
           }
+        }
+        if (oldVersion < 13) {
+          await _garantirColunaIsInconsistency(db);
         }
       },
     );

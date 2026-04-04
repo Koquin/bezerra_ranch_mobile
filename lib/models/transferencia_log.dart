@@ -7,6 +7,7 @@ class TransferenciaLog {
   final String? loteDestino;
   final String? pastoOrigem;
   final String? pastoDestino;
+  final bool isInconsistency;
   final int usuarioId;
   final DateTime dataTransferencia;
   final DateTime dataRegistro;
@@ -21,6 +22,7 @@ class TransferenciaLog {
     this.loteDestino,
     this.pastoOrigem,
     this.pastoDestino,
+    this.isInconsistency = false,
     required this.usuarioId,
     required this.dataTransferencia,
     required this.dataRegistro,
@@ -36,6 +38,7 @@ class TransferenciaLog {
         'lote_destino': loteDestino,
         'pasto_origem': pastoOrigem,
         'pasto_destino': pastoDestino,
+        'is_inconsistency': isInconsistency ? 1 : 0,
         'usuario_id': usuarioId,
         'data_transferencia': dataTransferencia.toIso8601String(),
         'data_registro': dataRegistro.toIso8601String(),

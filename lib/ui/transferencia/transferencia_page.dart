@@ -25,12 +25,13 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
   String? _fazendaDestino;
   String? _loteDestino;
   String? _pastoDestino;
+  bool _isInconsistency = false;
 
   bool _saving = false;
   List<Nascimento> _animaisSelecionados = [];
 
-  static const List<String> _lotesMock = ['Lote A', 'Lote B'];
-  static const List<String> _pastosMock = ['Pasto 1', 'Pasto 2'];
+  static const List<String> _lotesMock = ['Transferência', 'Geral'];
+  static const List<String> _pastosMock = ['Transferência', 'Geral'];
 
   @override
   void initState() {
@@ -97,20 +98,33 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
 
     if (inconsistentes.length > 1) {
       final ids = inconsistentes.map((a) => a.cria).join(', ');
-      await showDialog<void>(
+      final prosseguir = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Inconsistências encontradas'),
           content: Text(
-              'Vários animais não estão na fazenda de origem selecionada.\nAnimais: $ids\n\nCorrija as inconsistências antes de continuar.'),
+              'Vários animais não estão na fazenda de origem selecionada.\nAnimais: $ids\n\nDeseja continuar e registrar como inconsistência?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Salvar mesmo assim'),
             ),
           ],
         ),
       );
+
+      if (prosseguir == true) {
+        if (!mounted) return false;
+        setState(() {
+          _isInconsistency = true;
+        });
+        return true;
+      }
+
       return false;
     }
 
@@ -143,6 +157,7 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
 
     if (!mounted) return false;
     setState(() {
+      _isInconsistency = true;
       _fazendaOrigem = origemReal;
       _fazendaDestino = origemAtual;
     });
@@ -154,27 +169,34 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
 
     if (novaInconsistencia.isNotEmpty) {
       final ids = novaInconsistencia.map((a) => a.cria).join(', ');
-      await showDialog<void>(
+      final prosseguir = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Inconsistências após ajuste'),
           content: Text(
-              'Após o ajuste, ainda existem animais fora da fazenda de origem: $ids.\nCorrija antes de continuar.'),
+              'Após o ajuste, ainda existem animais fora da fazenda de origem: $ids.\n\nDeseja continuar e registrar como inconsistência?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Salvar mesmo assim'),
             ),
           ],
         ),
       );
-      return false;
+
+      if (prosseguir != true) return false;
     }
 
     return true;
   }
 
   Future<void> _confirmarTransferencia() async {
+    _isInconsistency = false;
+
     if (_animaisSelecionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione ao menos 1 animal.')),
@@ -208,25 +230,29 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
     if (!okInconsistencia) return;
     if (!mounted) return;
 
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirmar transferência'),
-        content: Text(
-            'Confirmar transferência de ${_animaisSelecionados.length} animal(is) para ${_fazendaDestino ?? '-'}, lote ${_loteDestino ?? '-'} e pasto ${_pastoDestino ?? '-'}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
-    );
-    if (confirmar != true) return;
+    // Quando a inconsistência já foi explicitamente confirmada no prompt anterior,
+    // não bloqueamos o salvamento com uma segunda confirmação.
+    if (!_isInconsistency) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Confirmar transferência'),
+          content: Text(
+              'Confirmar transferência de ${_animaisSelecionados.length} animal(is) para ${_fazendaDestino ?? '-'}, lote ${_loteDestino ?? '-'} e pasto ${_pastoDestino ?? '-'}?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -236,6 +262,7 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
         fazendaDestino: _fazendaDestino!,
         loteDestino: _loteDestino!,
         pastoDestino: _pastoDestino!,
+        isInconsistency: _isInconsistency,
         dataTransferencia: dataTransferencia,
         usuarioId: AppSession.usuarioId!,
       );
@@ -307,7 +334,7 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
   Widget build(BuildContext context) {
     final count = _animaisSelecionados.length;
     return Scaffold(
-      appBar: AppBar(title: const Text('Transferência')),
+      appBar: AppBar(title: const Text('Nova transferência')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

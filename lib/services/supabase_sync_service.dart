@@ -417,6 +417,19 @@ class SupabaseSyncService {
 
     for (final t in transferencias) {
       try {
+        final localUserId = t['usuario_id'] as int?;
+        if (localUserId == null) {
+          print('✗ Transferência ${t['id']} sem usuario_id local');
+          continue;
+        }
+
+        final serverUserId =
+            await _obterOuCriarUsuarioServidorPorId(localUserId);
+        if (serverUserId == null) {
+          print('✗ Transferência ${t['id']} sem usuário válido no servidor');
+          continue;
+        }
+
         final dados = {
           'id': t['id'],
           'animal_id': t['animal_id'],
@@ -426,7 +439,8 @@ class SupabaseSyncService {
           'lote_destino': t['lote_destino'],
           'pasto_origem': t['pasto_origem'],
           'pasto_destino': t['pasto_destino'],
-          'usuario_id': t['usuario_id'],
+          'is_inconsistency': t['is_inconsistency'],
+          'usuario_id': serverUserId,
           'data_transferencia': t['data_transferencia'],
           'data_registro': t['data_registro'],
           'atualizado_em': t['atualizado_em'],
@@ -776,6 +790,7 @@ class SupabaseSyncService {
             'lote_destino': t['lote_destino'],
             'pasto_origem': t['pasto_origem'],
             'pasto_destino': t['pasto_destino'],
+            'is_inconsistency': t['is_inconsistency'],
             'usuario_id': t['usuario_id'],
             'data_transferencia': t['data_transferencia'],
             'data_registro': t['data_registro'],
@@ -960,6 +975,8 @@ class SupabaseSyncService {
           where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('morte_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
+      await txn.update('transferencia_log', {'usuario_id': serverId},
+          where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('solicitacao_faixa', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
     });
@@ -996,6 +1013,8 @@ class SupabaseSyncService {
             await txn.update('nascimento_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('morte_log', {'usuario_id': fallbackId},
+                where: 'usuario_id = ?', whereArgs: [currentLocalId]);
+            await txn.update('transferencia_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('solicitacao_faixa', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
