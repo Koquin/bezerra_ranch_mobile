@@ -2,6 +2,7 @@ class Nascimento {
   static const String statusAtivo = 'ATIVO';
   static const String statusVendido = 'VENDIDO';
   static const String statusMorto = 'MORTO';
+  static const String statusAbatido = 'ABATIDO';
 
   final int? id;
   final String cria;
@@ -59,6 +60,8 @@ class Nascimento {
 
   bool get vendido => status == statusVendido;
 
+  bool get abatido => status == statusAbatido;
+
   Map<String, Object?> toMap() => {
         'id': id,
         'cria': cria,
@@ -112,7 +115,10 @@ class Nascimento {
         locationLongitude: _parseDouble(m['location_longitude']),
         status: (() {
           final s = (m['status'] as String?)?.trim().toUpperCase();
-          if (s == statusMorto || s == statusVendido || s == statusAtivo) {
+          if (s == statusMorto ||
+              s == statusVendido ||
+              s == statusAtivo ||
+              s == statusAbatido) {
             return s;
           }
 

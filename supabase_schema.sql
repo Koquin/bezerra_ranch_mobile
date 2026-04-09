@@ -125,6 +125,19 @@ ALTER TABLE nascimento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE morte ENABLE ROW LEVEL SECURITY;
 ALTER TABLE solicitacao_faixa ENABLE ROW LEVEL SECURITY;
 
+-- Helper para checar claim de admin no JWT
+CREATE OR REPLACE FUNCTION public.request_is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(
+        NULLIF(auth.jwt() ->> 'is_admin', '')::BOOLEAN,
+        NULLIF(auth.jwt() -> 'app_metadata' ->> 'is_admin', '')::BOOLEAN,
+        false
+    );
+$$;
+
 -- Políticas RLS: Permitir TODAS as operações para requisições anônimas
 -- IMPORTANTE: Como estamos usando apenas anon key (sem autenticação de usuários),
 -- precisamos permitir acesso total para usuários anônimos
@@ -136,12 +149,20 @@ CREATE POLICY "Permitir select para anon" ON app_config
 
 -- Políticas para tabela usuario
 DROP POLICY IF EXISTS "Permitir todas operações para autenticados" ON usuario;
+DROP POLICY IF EXISTS "Permitir select para anon" ON usuario;
+DROP POLICY IF EXISTS "Permitir insert para anon" ON usuario;
+DROP POLICY IF EXISTS "Permitir update para anon" ON usuario;
+DROP POLICY IF EXISTS "Permitir delete para anon" ON usuario;
+DROP POLICY IF EXISTS "Permitir insert somente admin" ON usuario;
+DROP POLICY IF EXISTS "Permitir update somente admin" ON usuario;
+DROP POLICY IF EXISTS "Permitir delete somente admin" ON usuario;
 CREATE POLICY "Permitir select para anon" ON usuario
     FOR SELECT USING (true);
 CREATE POLICY "Permitir insert para anon" ON usuario
     FOR INSERT WITH CHECK (true);
 CREATE POLICY "Permitir update para anon" ON usuario
-    FOR UPDATE USING (true);
+    FOR UPDATE USING (true)
+    WITH CHECK (true);
 CREATE POLICY "Permitir delete para anon" ON usuario
     FOR DELETE USING (true);
 

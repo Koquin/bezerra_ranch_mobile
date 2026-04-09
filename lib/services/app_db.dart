@@ -20,6 +20,49 @@ class AppDb {
     }
   }
 
+  static Future<void> _garantirBaixaLog(Database db) async {
+    final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('baixa_log','morte_log')");
+    final hasBaixaLog = tables.any((t) => t['name'] == 'baixa_log');
+    final hasMorteLog = tables.any((t) => t['name'] == 'morte_log');
+
+    if (!hasBaixaLog && hasMorteLog) {
+      await db.execute("ALTER TABLE morte_log RENAME TO baixa_log;");
+    }
+
+    if (!hasBaixaLog && !hasMorteLog) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS baixa_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nascimento_id INTEGER NOT NULL,
+          tipo_baixa TEXT NOT NULL DEFAULT 'MORTE',
+          data_morte TEXT NOT NULL,
+          fazenda TEXT NOT NULL,
+          foto1 TEXT,
+          foto2 TEXT,
+          foto3 TEXT,
+          audio TEXT,
+          descricao TEXT,
+          location_cidade TEXT,
+          location_bairro TEXT,
+          location_latitude REAL,
+          location_longitude REAL,
+          usuario_id INTEGER NOT NULL,
+          criado_em TEXT NOT NULL,
+          atualizado_em TEXT NOT NULL,
+          FOREIGN KEY(nascimento_id) REFERENCES animal(id)
+        );
+      ''');
+    }
+
+    final cols = await db.rawQuery("PRAGMA table_info(baixa_log);");
+    final hasTipoBaixa = cols.any((c) => c['name'] == 'tipo_baixa');
+    if (!hasTipoBaixa) {
+      await db.execute(
+          "ALTER TABLE baixa_log ADD COLUMN tipo_baixa TEXT NOT NULL DEFAULT 'MORTE';");
+    }
+  }
+
   static Future<Database> getDb() async {
     print('Entrou no getDb do AppDb');
     if (_db != null) return _db!;
@@ -29,9 +72,10 @@ class AppDb {
 
     _db = await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onOpen: (db) async {
         await _garantirColunaIsInconsistency(db);
+        await _garantirBaixaLog(db);
       },
       onCreate: (db, version) async {
         await db.execute('''
@@ -74,7 +118,7 @@ class AppDb {
             usuario_id INTEGER NOT NULL,
             criado_em TEXT NOT NULL,
             atualizado_em TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'ATIVO' CHECK(status IN ('ATIVO','VENDIDO','MORTO'))
+            status TEXT NOT NULL DEFAULT 'ATIVO' CHECK(status IN ('ATIVO','VENDIDO','MORTO','ABATIDO'))
           );
         ''');
 
@@ -108,9 +152,10 @@ class AppDb {
         ''');
 
         await db.execute('''
-          CREATE TABLE morte_log (
+          CREATE TABLE baixa_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nascimento_id INTEGER NOT NULL,
+            tipo_baixa TEXT NOT NULL DEFAULT 'MORTE',
             data_morte TEXT NOT NULL,
             fazenda TEXT NOT NULL,
             foto1 TEXT,
@@ -276,7 +321,7 @@ class AppDb {
               usuario_id INTEGER NOT NULL,
               criado_em TEXT NOT NULL,
               atualizado_em TEXT NOT NULL,
-              status TEXT NOT NULL DEFAULT 'ATIVO' CHECK(status IN ('ATIVO','VENDIDO','MORTO'))
+              status TEXT NOT NULL DEFAULT 'ATIVO' CHECK(status IN ('ATIVO','VENDIDO','MORTO','ABATIDO'))
             );
           ''');
 
@@ -358,15 +403,30 @@ class AppDb {
         }
         if (oldVersion < 12) {
           final tables = await db.rawQuery(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('morte','morte_log')");
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('morte','morte_log','baixa_log')");
           final hasMorte = tables.any((t) => t['name'] == 'morte');
           final hasMorteLog = tables.any((t) => t['name'] == 'morte_log');
-          if (hasMorte && !hasMorteLog) {
+          final hasBaixaLog = tables.any((t) => t['name'] == 'baixa_log');
+          if (hasMorte && !hasMorteLog && !hasBaixaLog) {
+            await db.execute("ALTER TABLE morte RENAME TO baixa_log;");
+          } else if (hasMorte && !hasBaixaLog) {
             await db.execute("ALTER TABLE morte RENAME TO morte_log;");
           }
         }
         if (oldVersion < 13) {
           await _garantirColunaIsInconsistency(db);
+        }
+        if (oldVersion < 14) {
+          await _garantirBaixaLog(db);
+
+          await db.execute('''
+            UPDATE animal
+            SET status = CASE
+              WHEN UPPER(TRIM(CAST(status AS TEXT))) IN ('ATIVO','VENDIDO','MORTO','ABATIDO')
+                THEN UPPER(TRIM(CAST(status AS TEXT)))
+              ELSE 'ATIVO'
+            END;
+          ''');
         }
       },
     );

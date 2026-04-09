@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/app_runtime_config.dart';
 import '../../controllers/animal_controller.dart';
 import '../../models/nascimento.dart';
+import '../../services/export_service.dart';
 
 class AnimalListPage extends StatefulWidget {
   const AnimalListPage({super.key});
@@ -12,6 +16,7 @@ class AnimalListPage extends StatefulWidget {
 
 class _AnimalListPageState extends State<AnimalListPage> {
   final _animalController = AnimalController();
+  final _export = ExportService();
   final _search = TextEditingController();
 
   List<Nascimento> _items = [];
@@ -42,15 +47,72 @@ class _AnimalListPageState extends State<AnimalListPage> {
     print('AnimalListPage._load finalizado com ${_items.length} registros.');
   }
 
+  Future<void> _exportarCsv() async {
+    try {
+      final file = await _export.exportAnimaisCsv();
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text:
+            'Base de Animais (CSV). Envie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
+      );
+      await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
+          mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Falha ao exportar: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     print('Entrou no build do AnimalListPage');
     final totalMortos =
         _items.where((n) => n.status == Nascimento.statusMorto).length;
+    final totalAbatidos =
+        _items.where((n) => n.status == Nascimento.statusAbatido).length;
     final totalVendidos =
         _items.where((n) => n.status == Nascimento.statusVendido).length;
     return Scaffold(
-      appBar: AppBar(title: const Text('Animais')),
+      appBar: AppBar(
+        title: const Text('Animais'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Opções CSV',
+            icon: const Icon(Icons.file_download_outlined),
+            onSelected: (value) async {
+              if (value == 'exportar') {
+                if (_items.isEmpty) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nenhum dado para exportar.')),
+                  );
+                  return;
+                }
+                await _exportarCsv();
+                return;
+              }
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Importação CSV será habilitada em seguida.')),
+              );
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'exportar',
+                child: Text('Exportar CSV'),
+              ),
+              PopupMenuItem(
+                value: 'importar',
+                child: Text('Importar CSV'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -80,7 +142,7 @@ class _AnimalListPageState extends State<AnimalListPage> {
                   border: Border.all(color: Colors.black12),
                 ),
                 child: Text(
-                  'Total: ${_items.length}  |  Mortos: $totalMortos  |  Vendidos: $totalVendidos',
+                  'Total: ${_items.length}  |  Mortos: $totalMortos  |  Abatidos: $totalAbatidos  |  Vendidos: $totalVendidos',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: Colors.black87,
@@ -101,6 +163,8 @@ class _AnimalListPageState extends State<AnimalListPage> {
                             final n = _items[i];
                             final bool isMorto =
                                 n.status == Nascimento.statusMorto;
+                            final bool isAbatido =
+                                n.status == Nascimento.statusAbatido;
                             final bool isVendido =
                                 n.status == Nascimento.statusVendido;
                             return ListTile(
@@ -110,20 +174,26 @@ class _AnimalListPageState extends State<AnimalListPage> {
                                       color: Colors.red,
                                       size: 28,
                                     )
-                                  : isVendido
+                                  : isAbatido
                                       ? const Icon(
-                                          Icons.attach_money,
-                                          color: Colors.green,
+                                          Icons.track_changes,
+                                          color: Colors.deepOrange,
                                           size: 28,
                                         )
-                                      : const Icon(Icons.pets),
+                                      : isVendido
+                                          ? const Icon(
+                                              Icons.attach_money,
+                                              color: Colors.green,
+                                              size: 28,
+                                            )
+                                          : const Icon(Icons.pets),
                               title: Text(
                                 n.cria,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900),
                               ),
                               subtitle: Text(
-                                'Mãe: ${n.mae} • ${n.sexo} • ${n.fazenda} • ${n.status}',
+                                'Mãe: ${n.mae} • ${n.sexo}\nFazenda: ${n.fazenda} • Lote: ${n.lote ?? '-'} • Pasto: ${n.pasto ?? '-'}\nStatus: ${n.status}',
                               ),
                             );
                           },

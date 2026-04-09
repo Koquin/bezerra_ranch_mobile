@@ -31,6 +31,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
   final _descricaoController = TextEditingController();
   bool _saving = false;
   Morte? _morteExistente;
+  String _tipoBaixa = Morte.tipoMorte;
 
   String? _locationCidade;
   String? _locationBairro;
@@ -78,7 +79,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
       text: AppSession.fazendaSelecionada ?? widget.nascimento.fazenda,
     );
 
-    if (widget.nascimento.morto) {
+    if (widget.nascimento.morto || widget.nascimento.abatido) {
       _loadMorte();
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,6 +101,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
     if (morte != null && mounted) {
       setState(() {
         _morteExistente = morte;
+        _tipoBaixa = morte.tipoBaixa;
         _dataMorte = morte.dataMorte;
         _fazendaController.text = morte.fazenda;
         _descricaoController.text = morte.descricao ?? '';
@@ -241,6 +243,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
       final morte = Morte(
         id: _morteExistente?.id,
         nascimentoId: widget.nascimento.id!,
+        tipoBaixa: _tipoBaixa,
         dataMorte: _dataMorte,
         fazenda:
             _morteExistente == null && AppSession.fazendaSelecionada != null
@@ -280,11 +283,11 @@ class _MorteFormPageState extends State<MorteFormPage> {
     final n = widget.nascimento;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.nascimento.morto
+        title: Text(widget.nascimento.morto || widget.nascimento.abatido
             ? (widget.readOnly
-                ? 'Morte - ${n.cria}'
-                : 'Editar Morte - ${n.cria}')
-            : 'Registrar Morte - ${n.cria}'),
+                ? 'Baixa - ${n.cria}'
+                : 'Editar Baixa - ${n.cria}')
+            : 'Registrar Baixa - ${n.cria}'),
       ),
       body: SafeArea(
         child: Form(
@@ -323,6 +326,34 @@ class _MorteFormPageState extends State<MorteFormPage> {
                               setState(() => _dataMorte = picked);
                           },
                     child: Text(DateFormat('dd/MM/yyyy').format(_dataMorte)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _tipoBaixa,
+                      decoration:
+                          const InputDecoration(labelText: 'Tipo de baixa'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: Morte.tipoMorte,
+                          child: Text('Morte'),
+                        ),
+                        DropdownMenuItem(
+                          value: Morte.tipoAbate,
+                          child: Text('Abate'),
+                        ),
+                      ],
+                      onChanged: widget.readOnly
+                          ? null
+                          : (v) {
+                              if (v == null) return;
+                              setState(() => _tipoBaixa = v);
+                            },
+                    ),
                   ),
                 ],
               ),

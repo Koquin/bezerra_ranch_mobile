@@ -5,9 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_runtime_config.dart';
 import '../../controllers/animal_controller.dart';
 import '../../controllers/morte_controller.dart';
+import '../../models/morte.dart';
 import '../../services/export_service.dart';
 
-import '../../session/app_session.dart';
 import '../../models/nascimento.dart';
 
 import 'morte_form_page.dart';
@@ -25,12 +25,11 @@ class _MorteListPageState extends State<MorteListPage> {
 
   Future<void> _exportarCsv() async {
     try {
-      final mortes = await _morteController.list();
-      final file = await _export.exportMortesCsv(mortes);
+      final file = await _export.exportMortesCsv();
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
-            'Base de Mortes (CSV). Envie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
+            'Base de Baixas (CSV). Envie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
       );
       await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
           mode: LaunchMode.externalApplication);
@@ -43,7 +42,7 @@ class _MorteListPageState extends State<MorteListPage> {
 
   final _animalController = AnimalController();
   final _search = TextEditingController();
-  List<Nascimento> _items = [];
+  List<_BaixaListItem> _items = [];
   bool _loading = true;
 
   @override
@@ -58,33 +57,40 @@ class _MorteListPageState extends State<MorteListPage> {
     super.dispose();
   }
 
-  Future<void> _editarMorte(Nascimento n) async {
-    print('Editando morte para nascimento: ${n.cria}');
-    final morte = await _morteController.getPorNascimentoId(n.id!);
-    if (morte != null) {
-      final ok = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MorteFormPage(
-            nascimento: n,
-            readOnly: false,
-          ),
-        ),
+  Future<void> _editarMorte(_BaixaListItem item) async {
+    final animal = item.animal;
+    if (animal == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content:
+                Text('Animal desta baixa não foi encontrado para edição.')),
       );
-      if (ok == true) await _load(q: _search.text);
+      return;
     }
+
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MorteFormPage(
+          nascimento: animal,
+          readOnly: false,
+        ),
+      ),
+    );
+    if (ok == true) await _load(q: _search.text);
   }
 
-  Future<void> _deletarMorte(Nascimento n) async {
-    print('Deletando morte para nascimento: ${n.cria}');
-    final morte = await _morteController.getPorNascimentoId(n.id!);
-    if (morte == null) return;
+  Future<void> _deletarMorte(_BaixaListItem item) async {
+    final morte = item.baixa;
+    final animal = item.animal;
+    final animalLabel = animal?.cria ?? 'ID ${morte.nascimentoId}';
 
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar deleção'),
-        content: Text('Deletar registro de morte do CRIA ${n.cria}?'),
+        content: Text('Deletar registro de baixa do animal $animalLabel?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -101,13 +107,13 @@ class _MorteListPageState extends State<MorteListPage> {
     if (confirmar == true && mounted) {
       try {
         await _morteController.deletarPorNascimento(
-          nascimentoId: n.id!,
+          nascimentoId: morte.nascimentoId,
           morteId: morte.id!,
         );
         await _load(q: _search.text);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Morte de ${n.cria} deletada com sucesso')),
+          SnackBar(content: Text('Baixa de $animalLabel deletada com sucesso')),
         );
       } catch (e) {
         if (!mounted) return;
@@ -121,12 +127,39 @@ class _MorteListPageState extends State<MorteListPage> {
   Future<void> _load({String? q}) async {
     print('Entrou no _load do MorteListPage, q=$q');
     setState(() => _loading = true);
-    final list = await _animalController.list(q: q);
-    final mortos =
-        list.where((n) => n.status == Nascimento.statusMorto).toList();
+
+    final baixas = await _morteController.list();
+    final animais = await _animalController.list();
+    final animalById = <int, Nascimento>{
+      for (final a in animais)
+        if (a.id != null) a.id!: a,
+    };
+
+    var itens = baixas
+        .map(
+            (b) => _BaixaListItem(baixa: b, animal: animalById[b.nascimentoId]))
+        .toList();
+
+    final term = q?.trim().toLowerCase();
+    if (term != null && term.isNotEmpty) {
+      itens = itens.where((item) {
+        final animal = item.animal;
+        final tipo = item.baixa.tipoBaixa.toLowerCase();
+        final causa = (item.baixa.descricao ?? '').toLowerCase();
+        final fazenda = item.baixa.fazenda.toLowerCase();
+        final cria = (animal?.cria ?? '').toLowerCase();
+        final mae = (animal?.mae ?? '').toLowerCase();
+        return tipo.contains(term) ||
+            causa.contains(term) ||
+            fazenda.contains(term) ||
+            cria.contains(term) ||
+            mae.contains(term);
+      }).toList();
+    }
+
     if (!mounted) return;
     setState(() {
-      _items = mortos;
+      _items = itens;
       _loading = false;
     });
   }
@@ -152,16 +185,47 @@ class _MorteListPageState extends State<MorteListPage> {
   @override
   Widget build(BuildContext context) {
     print('Entrou no build do MorteListPage');
+    final totalAbatidos =
+        _items.where((item) => item.baixa.tipoBaixa == Morte.tipoAbate).length;
+    final totalMortes = _items.length - totalAbatidos;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Morte'),
+        title: const Text('Baixas'),
         actions: [
-          if (AppSession.isAdmin)
-            IconButton(
-              tooltip: 'Exportar CSV',
-              icon: const Icon(Icons.upload_file),
-              onPressed: _items.isEmpty ? null : _exportarCsv,
-            ),
+          PopupMenuButton<String>(
+            tooltip: 'Opções CSV',
+            icon: const Icon(Icons.file_download_outlined),
+            onSelected: (value) async {
+              if (value == 'exportar') {
+                if (_items.isEmpty) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nenhum dado para exportar.')),
+                  );
+                  return;
+                }
+                await _exportarCsv();
+                return;
+              }
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Importação CSV será habilitada em seguida.')),
+              );
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'exportar',
+                child: Text('Exportar CSV'),
+              ),
+              PopupMenuItem(
+                value: 'importar',
+                child: Text('Importar CSV'),
+              ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(
@@ -192,7 +256,7 @@ class _MorteListPageState extends State<MorteListPage> {
                   border: Border.all(color: Colors.black12),
                 ),
                 child: Text(
-                  'Total de animais mortos: ${_items.length}',
+                  'Total de animais baixados: ${_items.length}  |  Mortes: $totalMortes  |  Abates: $totalAbatidos',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: Colors.black87,
@@ -210,29 +274,41 @@ class _MorteListPageState extends State<MorteListPage> {
                           itemCount: _items.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (_, i) {
-                            final n = _items[i];
+                            final item = _items[i];
+                            final baixa = item.baixa;
+                            final n = item.animal;
+                            final isAbatido =
+                                baixa.tipoBaixa == Morte.tipoAbate;
                             final dataStr =
-                                '${n.criadoEm.day.toString().padLeft(2, '0')}/'
-                                '${n.criadoEm.month.toString().padLeft(2, '0')}/'
-                                '${n.criadoEm.year}';
+                                '${baixa.criadoEm.day.toString().padLeft(2, '0')}/'
+                                '${baixa.criadoEm.month.toString().padLeft(2, '0')}/'
+                                '${baixa.criadoEm.year}';
+                            final cria = n?.cria ?? 'ID ${baixa.nascimentoId}';
+                            final mae = n?.mae ?? '-';
+                            final sexo = n?.sexo ?? '-';
+                            final causa = (baixa.descricao == null ||
+                                    baixa.descricao!.trim().isEmpty)
+                                ? '-'
+                                : baixa.descricao!.trim();
                             return ListTile(
-                              leading: n.morto
-                                  ? const Icon(
+                              leading: isAbatido
+                                  ? const Icon(Icons.track_changes,
+                                      color: Colors.deepOrange, size: 32)
+                                  : const Icon(
                                       Icons.sentiment_very_dissatisfied,
                                       color: Colors.red,
-                                      size: 32)
-                                  : null,
-                              title: Text(n.cria,
+                                      size: 32),
+                              title: Text(cria,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w900)),
                               subtitle: Text(
-                                  'Mãe: ${n.mae} • ${n.sexo} • ${n.fazenda} • $dataStr'),
+                                  'Mãe: $mae • $sexo • ${baixa.fazenda} • $dataStr\nCausa: $causa'),
                               trailing: PopupMenuButton<String>(
                                 onSelected: (value) async {
                                   if (value == 'editar') {
-                                    _editarMorte(n);
+                                    _editarMorte(item);
                                   } else if (value == 'deletar') {
-                                    _deletarMorte(n);
+                                    _deletarMorte(item);
                                   }
                                 },
                                 itemBuilder: (context) => [
@@ -250,6 +326,15 @@ class _MorteListPageState extends State<MorteListPage> {
                                 ],
                               ), // end PopupMenuButton
                               onTap: () async {
+                                if (n == null) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Animal desta baixa não foi encontrado para abrir o formulário.')),
+                                  );
+                                  return;
+                                }
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -269,12 +354,19 @@ class _MorteListPageState extends State<MorteListPage> {
         ), // end Column
       ), // end SafeArea
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Registrar morte',
+        tooltip: 'Registrar baixa',
         onPressed: _abrirSeletorAnimais,
         child: const Icon(Icons.add),
       ),
     ); // end Scaffold
   }
+}
+
+class _BaixaListItem {
+  final Morte baixa;
+  final Nascimento? animal;
+
+  const _BaixaListItem({required this.baixa, required this.animal});
 }
 
 class _SelecionarAnimalPage extends StatefulWidget {

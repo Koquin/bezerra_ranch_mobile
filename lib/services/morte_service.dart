@@ -5,7 +5,7 @@ class MorteService {
   Future<List<Morte>> list({String? q}) async {
     print('Entrou no list do MorteService, q=$q');
     final db = await AppDb.getDb();
-    final rows = await db.query('morte_log', orderBy: 'criado_em DESC');
+    final rows = await db.query('baixa_log', orderBy: 'criado_em DESC');
     final result = rows.map(Morte.fromMap).toList();
     print(
         'MorteService.list retornando ${result.length} registros: ${result.map((m) => m.toMap()).toList()}');
@@ -16,7 +16,7 @@ class MorteService {
     print('Buscando dados da morte para nascimentoId: $nascimentoId');
     final db = await AppDb.getDb();
     final rows = await db.query(
-      'morte_log',
+      'baixa_log',
       where: 'nascimento_id = ?',
       whereArgs: [nascimentoId],
       limit: 1,
@@ -37,13 +37,18 @@ class MorteService {
   }) async {
     final db = await AppDb.getDb();
     if (morteExistenteId != null) {
-      await db.update('morte_log', morte.toMap(),
+      await db.update('baixa_log', morte.toMap(),
           where: 'id = ?', whereArgs: [morteExistenteId]);
+      final novoStatus =
+          morte.tipoBaixa == Morte.tipoAbate ? 'ABATIDO' : 'MORTO';
+      await db.update('animal', {'status': novoStatus},
+          where: 'id = ?', whereArgs: [animalId]);
       return;
     }
 
-    await db.insert('morte_log', morte.toMap());
-    await db.update('animal', {'status': 'MORTO'},
+    await db.insert('baixa_log', morte.toMap());
+    final novoStatus = morte.tipoBaixa == Morte.tipoAbate ? 'ABATIDO' : 'MORTO';
+    await db.update('animal', {'status': novoStatus},
         where: 'id = ?', whereArgs: [animalId]);
   }
 
@@ -52,7 +57,7 @@ class MorteService {
     required int morteId,
   }) async {
     final db = await AppDb.getDb();
-    await db.delete('morte_log', where: 'id = ?', whereArgs: [morteId]);
+    await db.delete('baixa_log', where: 'id = ?', whereArgs: [morteId]);
     await db.update('animal', {'status': 'ATIVO'},
         where: 'id = ?', whereArgs: [nascimentoId]);
   }

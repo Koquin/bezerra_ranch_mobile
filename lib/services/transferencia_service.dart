@@ -88,6 +88,20 @@ class TransferenciaService {
           where: 'id = ?',
           whereArgs: [animal.id],
         );
+
+        // Mantem o log de nascimento alinhado com a posição atual do animal
+        // para evitar que reconciliações posteriores revertam a transferência.
+        await txn.update(
+          'nascimento_log',
+          {
+            'fazenda': fazendaDestino,
+            'lote': loteDestino,
+            'pasto': pastoDestino,
+            'atualizado_em': now.toIso8601String(),
+          },
+          where: 'animal_id = ? OR id = ?',
+          whereArgs: [animal.id, animal.id],
+        );
       }
     });
   }

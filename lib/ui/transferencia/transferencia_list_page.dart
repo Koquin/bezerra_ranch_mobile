@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/app_runtime_config.dart';
 import '../../controllers/transferencia_controller.dart';
+import '../../services/export_service.dart';
 import 'transferencia_page.dart';
 
 class TransferenciaListPage extends StatefulWidget {
@@ -12,6 +16,7 @@ class TransferenciaListPage extends StatefulWidget {
 
 class _TransferenciaListPageState extends State<TransferenciaListPage> {
   final _controller = TransferenciaController();
+  final _export = ExportService();
   final _search = TextEditingController();
 
   List<Map<String, Object?>> _items = [];
@@ -47,6 +52,23 @@ class _TransferenciaListPageState extends State<TransferenciaListPage> {
     await _load(q: _search.text);
   }
 
+  Future<void> _exportarCsv() async {
+    try {
+      final file = await _export.exportTransferenciasCsv();
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text:
+            'Base de Transferências (CSV). Envie no link do Dropbox: ${AppRuntimeConfig.dropboxRequestUrl}',
+      );
+      await launchUrl(Uri.parse(AppRuntimeConfig.dropboxRequestUrl),
+          mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Falha ao exportar: $e')));
+    }
+  }
+
   bool _isInconsistency(Map<String, Object?> row) {
     final value = row['is_inconsistency'];
     if (value is int) return value == 1;
@@ -69,7 +91,45 @@ class _TransferenciaListPageState extends State<TransferenciaListPage> {
   Widget build(BuildContext context) {
     final qtdInconsistencias = _items.where(_isInconsistency).length;
     return Scaffold(
-      appBar: AppBar(title: const Text('Transferências')),
+      appBar: AppBar(
+        title: const Text('Transferências'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Opções CSV',
+            icon: const Icon(Icons.file_download_outlined),
+            onSelected: (value) async {
+              if (value == 'exportar') {
+                if (_items.isEmpty) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nenhum dado para exportar.')),
+                  );
+                  return;
+                }
+                await _exportarCsv();
+                return;
+              }
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Importação CSV será habilitada em seguida.')),
+              );
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'exportar',
+                child: Text('Exportar CSV'),
+              ),
+              PopupMenuItem(
+                value: 'importar',
+                child: Text('Importar CSV'),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [

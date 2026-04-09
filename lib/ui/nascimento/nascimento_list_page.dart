@@ -99,7 +99,7 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
   Future<void> _exportarCsv() async {
     print('[NascimentoListPage._exportarCsv] itens=${_items.length}');
     try {
-      final file = await _export.exportNascimentosCsv(_items);
+      final file = await _export.exportNascimentosCsv();
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
@@ -219,12 +219,40 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
       appBar: AppBar(
         title: const Text('Nascimento'),
         actions: [
-          if (AppSession.isAdmin)
-            IconButton(
-              tooltip: 'Exportar CSV',
-              icon: const Icon(Icons.upload_file),
-              onPressed: _items.isEmpty ? null : _exportarCsv,
-            ),
+          PopupMenuButton<String>(
+            tooltip: 'Opções CSV',
+            icon: const Icon(Icons.file_download_outlined),
+            onSelected: (value) async {
+              if (value == 'exportar') {
+                if (_items.isEmpty) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nenhum dado para exportar.')),
+                  );
+                  return;
+                }
+                await _exportarCsv();
+                return;
+              }
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content:
+                        Text('Importação CSV será habilitada em seguida.')),
+              );
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'exportar',
+                child: Text('Exportar CSV'),
+              ),
+              PopupMenuItem(
+                value: 'importar',
+                child: Text('Importar CSV'),
+              ),
+            ],
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(

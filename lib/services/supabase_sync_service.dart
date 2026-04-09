@@ -107,6 +107,9 @@ class SupabaseSyncService {
         if (serverUserId == null) {
           print('✗ Animal ${n['id']} sem usuário válido no servidor');
           continue;
+        } else {
+          print(
+              '↗️ Animal ${n['id']} pronto para upload (local user: $localUserId, server user: $serverUserId, fazenda: ${n['fazenda']}, lote: ${n['lote']}, pasto: ${n['pasto']})');
         }
 
         final dados = {
@@ -137,6 +140,7 @@ class SupabaseSyncService {
         };
 
         await _supabase.from('animal').upsert(dados, onConflict: 'id');
+        print('✅ Upload animal ${n['id']} concluído');
       } catch (e) {
         print('✗ Erro ao sincronizar animal ${n['id']}: $e');
       }
@@ -366,7 +370,7 @@ class SupabaseSyncService {
   static Future<void> sincronizarMortes() async {
     print('📤 Sincronizando mortes...');
     final db = await AppDb.getDb();
-    final mortes = await db.query('morte_log');
+    final mortes = await db.query('baixa_log');
 
     for (final m in mortes) {
       try {
@@ -386,6 +390,7 @@ class SupabaseSyncService {
         final dados = {
           'id': m['id'],
           'nascimento_id': m['nascimento_id'],
+          'tipo_baixa': m['tipo_baixa'],
           'data_morte': m['data_morte'],
           'fazenda': m['fazenda'],
           'foto1': m['foto1'],
@@ -402,7 +407,7 @@ class SupabaseSyncService {
           'atualizado_em': m['atualizado_em'],
         };
 
-        await _supabase.from('morte_log').upsert(dados, onConflict: 'id');
+        await _supabase.from('baixa_log').upsert(dados, onConflict: 'id');
       } catch (e) {
         print('✗ Erro ao sincronizar morte ${m['id']}: $e');
       }
@@ -449,6 +454,7 @@ class SupabaseSyncService {
         await _supabase
             .from('transferencia_log')
             .upsert(dados, onConflict: 'id');
+        print('✅ Upload transferência ${t['id']} concluído');
       } catch (e) {
         print('✗ Erro ao sincronizar transferencia ${t['id']}: $e');
       }
@@ -555,9 +561,9 @@ class SupabaseSyncService {
             final timestampRemoto = u['atualizado_em'] as String?;
 
             // Atualiza se o remoto for mais recente ou se não houver timestamp
-            if (timestampRemoto != null &&
-                (timestampLocal == null ||
-                    timestampRemoto.compareTo(timestampLocal) > 0)) {
+            if (_isRemoteMoreRecent(
+                remoteTimestamp: timestampRemoto,
+                localTimestamp: timestampLocal)) {
               await db.update('usuario', dados,
                   where: 'id = ?', whereArgs: [u['id']]);
               print('✓ Usuário ${u['login']} atualizado do servidor');
@@ -620,14 +626,31 @@ class SupabaseSyncService {
           };
 
           if (local.isEmpty) {
+            print(
+                '⬇️ Animal ${n['id']} não existe localmente. Inserindo do servidor...');
             await db.insert('animal', dados);
             inseridos++;
             print('✓ Animal ${n['cria']} inserido do servidor');
           } else {
-            await db
-                .update('animal', dados, where: 'id = ?', whereArgs: [n['id']]);
-            atualizados++;
-            print('✓ Animal ${n['cria']} atualizado do servidor');
+            final timestampLocal = (local.first['atualizado_em'] as String?) ??
+                (local.first['criado_em'] as String?);
+            final timestampRemoto = n['atualizado_em'] as String?;
+
+            print(
+                '🕒 Animal ${n['id']} já existe local. Comparando timestamps (local: $timestampLocal, remoto: $timestampRemoto)');
+            if (_isRemoteMoreRecent(
+                remoteTimestamp: timestampRemoto,
+                localTimestamp: timestampLocal)) {
+              print(
+                  '⬇️ Animal ${n['id']}: remoto mais recente, atualizando local...');
+              await db.update('animal', dados,
+                  where: 'id = ?', whereArgs: [n['id']]);
+              atualizados++;
+              print('✓ Animal ${n['cria']} atualizado do servidor');
+            } else {
+              print(
+                  '⏭️ Animal ${n['id']}: mantendo LOCAL (remoto não é mais recente).');
+            }
           }
         } catch (e) {
           print('✗ Erro ao processar animal ${n['id']}: $e');
@@ -689,10 +712,21 @@ class SupabaseSyncService {
             inseridos++;
             print('✓ Nascimento_log ${l['cria']} inserido do servidor');
           } else {
-            await db.update('nascimento_log', dados,
-                where: 'id = ?', whereArgs: [l['id']]);
-            atualizados++;
-            print('✓ Nascimento_log ${l['cria']} atualizado do servidor');
+            final timestampLocal = (local.first['atualizado_em'] as String?) ??
+                (local.first['criado_em'] as String?);
+            final timestampRemoto = l['atualizado_em'] as String?;
+
+            if (_isRemoteMoreRecent(
+                remoteTimestamp: timestampRemoto,
+                localTimestamp: timestampLocal)) {
+              await db.update('nascimento_log', dados,
+                  where: 'id = ?', whereArgs: [l['id']]);
+              atualizados++;
+              print('✓ Nascimento_log ${l['cria']} atualizado do servidor');
+            } else {
+              print(
+                  '⏭️ Nascimento_log ${l['id']}: mantendo LOCAL (remoto não é mais recente).');
+            }
           }
         } catch (e) {
           print('✗ Erro ao processar nascimento_log ${l['id']}: $e');
@@ -711,7 +745,7 @@ class SupabaseSyncService {
     try {
       final db = await AppDb.getDb();
       final response = await _supabase
-          .from('morte_log')
+          .from('baixa_log')
           .select()
           .order('atualizado_em', ascending: false);
 
@@ -720,11 +754,15 @@ class SupabaseSyncService {
       for (final m in mortes) {
         try {
           final local = await db
-              .query('morte_log', where: 'id = ?', whereArgs: [m['id']]);
+              .query('baixa_log', where: 'id = ?', whereArgs: [m['id']]);
+          final tipoBaixa =
+              ((m['tipo_baixa'] as String?) ?? 'MORTE').trim().toUpperCase();
+          final statusAnimal = tipoBaixa == 'ABATE' ? 'ABATIDO' : 'MORTO';
 
           final dados = {
             'id': m['id'],
             'nascimento_id': m['nascimento_id'],
+            'tipo_baixa': tipoBaixa,
             'data_morte': m['data_morte'],
             'fazenda': m['fazenda'],
             'foto1': m['foto1'],
@@ -742,17 +780,35 @@ class SupabaseSyncService {
           };
 
           if (local.isEmpty) {
-            await db.insert('morte_log', dados);
+            await db.insert('baixa_log', dados);
+            await db.update(
+              'animal',
+              {
+                'status': statusAnimal,
+                'atualizado_em': m['atualizado_em'],
+              },
+              where: 'id = ?',
+              whereArgs: [m['nascimento_id']],
+            );
           } else {
             final timestampLocal = (local.first['atualizado_em'] as String?) ??
                 (local.first['criado_em'] as String?);
             final timestampRemoto = m['atualizado_em'] as String?;
 
-            if (timestampRemoto != null &&
-                (timestampLocal == null ||
-                    timestampRemoto.compareTo(timestampLocal) > 0)) {
-              await db.update('morte_log', dados,
+            if (_isRemoteMoreRecent(
+                remoteTimestamp: timestampRemoto,
+                localTimestamp: timestampLocal)) {
+              await db.update('baixa_log', dados,
                   where: 'id = ?', whereArgs: [m['id']]);
+              await db.update(
+                'animal',
+                {
+                  'status': statusAnimal,
+                  'atualizado_em': m['atualizado_em'],
+                },
+                where: 'id = ?',
+                whereArgs: [m['nascimento_id']],
+              );
             }
           }
         } catch (e) {
@@ -798,8 +854,12 @@ class SupabaseSyncService {
           };
 
           if (local.isEmpty) {
+            print(
+                '⬇️ Transferência ${t['id']} não existe localmente. Inserindo do servidor...');
             await db.insert('transferencia_log', dados);
           } else {
+            print(
+                '⬇️ Transferência ${t['id']} já existe local. Atualizando pelo dado remoto...');
             await db.update('transferencia_log', dados,
                 where: 'id = ?', whereArgs: [t['id']]);
           }
@@ -850,9 +910,9 @@ class SupabaseSyncService {
                 (local.first['solicitado_em'] as String?);
             final timestampRemoto = s['atualizado_em'] as String?;
 
-            if (timestampRemoto != null &&
-                (timestampLocal == null ||
-                    timestampRemoto.compareTo(timestampLocal) > 0)) {
+            if (_isRemoteMoreRecent(
+                remoteTimestamp: timestampRemoto,
+                localTimestamp: timestampLocal)) {
               await db.update('solicitacao_faixa', dados,
                   where: 'id = ?', whereArgs: [s['id']]);
             }
@@ -926,13 +986,44 @@ class SupabaseSyncService {
   static Future<void> _limparDadosLocais() async {
     final db = await AppDb.getDb();
     await db.transaction((txn) async {
-      await txn.delete('morte_log');
+      await txn.delete('baixa_log');
       await txn.delete('nascimento_log');
       await txn.delete('animal');
       await txn.delete('transferencia_log');
       await txn.delete('solicitacao_faixa');
       await txn.delete('usuario');
     });
+  }
+
+  static bool _isRemoteMoreRecent({
+    required String? remoteTimestamp,
+    required String? localTimestamp,
+  }) {
+    if (remoteTimestamp == null || remoteTimestamp.trim().isEmpty) {
+      print(
+          '🧭 Decisão sync: remoto sem timestamp válido -> NÃO sobrescrever local');
+      return false;
+    }
+    if (localTimestamp == null || localTimestamp.trim().isEmpty) {
+      print(
+          '🧭 Decisão sync: local sem timestamp válido -> remoto vence e pode sobrescrever');
+      return true;
+    }
+
+    final remoteDt = DateTime.tryParse(remoteTimestamp)?.toUtc();
+    final localDt = DateTime.tryParse(localTimestamp)?.toUtc();
+
+    if (remoteDt != null && localDt != null) {
+      final isAfter = remoteDt.isAfter(localDt);
+      print(
+          '🧭 Decisão sync DateTime: remoto=$remoteDt local=$localDt -> remotoMaisRecente=$isAfter');
+      return isAfter;
+    }
+
+    final fallback = remoteTimestamp.compareTo(localTimestamp) > 0;
+    print(
+        '🧭 Decisão sync fallback string: remoto=$remoteTimestamp local=$localTimestamp -> remotoMaisRecente=$fallback');
+    return fallback;
   }
 
   static Future<void> _reconciliarUsuarioIdLocal({
@@ -973,7 +1064,7 @@ class SupabaseSyncService {
           where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('nascimento_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
-      await txn.update('morte_log', {'usuario_id': serverId},
+      await txn.update('baixa_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
       await txn.update('transferencia_log', {'usuario_id': serverId},
           where: 'usuario_id = ?', whereArgs: [localId]);
@@ -1012,7 +1103,7 @@ class SupabaseSyncService {
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('nascimento_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
-            await txn.update('morte_log', {'usuario_id': fallbackId},
+            await txn.update('baixa_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);
             await txn.update('transferencia_log', {'usuario_id': fallbackId},
                 where: 'usuario_id = ?', whereArgs: [currentLocalId]);

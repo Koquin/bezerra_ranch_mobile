@@ -295,7 +295,7 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
                     ),
                     _card(
                       context: context,
-                      title: 'Morte',
+                      title: 'Baixa',
                       assetName: 'assets/calf_born_death.png',
                       enabled: true,
                       onTap: () => Navigator.push(

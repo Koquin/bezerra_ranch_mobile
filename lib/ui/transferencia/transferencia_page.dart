@@ -230,6 +230,30 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
     if (!okInconsistencia) return;
     if (!mounted) return;
 
+    final fazendaOrigem = (_fazendaOrigem ?? '').trim().toUpperCase();
+    final fazendaDestino = (_fazendaDestino ?? '').trim().toUpperCase();
+    final loteDestino = (_loteDestino ?? '').trim().toUpperCase();
+    final pastoDestino = (_pastoDestino ?? '').trim().toUpperCase();
+
+    final semMudanca = _animaisSelecionados.where((a) {
+      final loteOrigem = (a.lote ?? '').trim().toUpperCase();
+      final pastoOrigem = (a.pasto ?? '').trim().toUpperCase();
+      return fazendaOrigem == fazendaDestino &&
+          loteOrigem == loteDestino &&
+          pastoOrigem == pastoDestino;
+    }).toList();
+
+    if (semMudanca.isNotEmpty) {
+      final ids = semMudanca.map((a) => a.cria).join(', ');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Origem e destino não podem ser iguais em tudo (fazenda, lote e pasto). Animal(is): $ids'),
+        ),
+      );
+      return;
+    }
+
     // Quando a inconsistência já foi explicitamente confirmada no prompt anterior,
     // não bloqueamos o salvamento com uma segunda confirmação.
     if (!_isInconsistency) {

@@ -1,6 +1,10 @@
 class Morte {
+  static const String tipoMorte = 'MORTE';
+  static const String tipoAbate = 'ABATE';
+
   final int? id;
   final int nascimentoId;
+  final String tipoBaixa;
   final DateTime dataMorte;
   final String fazenda;
   final String? foto1;
@@ -19,6 +23,7 @@ class Morte {
   Morte({
     this.id,
     required this.nascimentoId,
+    String? tipoBaixa,
     required this.dataMorte,
     required this.fazenda,
     this.foto1,
@@ -33,11 +38,15 @@ class Morte {
     this.locationBairro,
     this.locationLatitude,
     this.locationLongitude,
-  }) : atualizadoEm = atualizadoEm ?? criadoEm;
+  })  : tipoBaixa = (tipoBaixa == null || tipoBaixa.trim().isEmpty)
+            ? tipoMorte
+            : tipoBaixa.trim().toUpperCase(),
+        atualizadoEm = atualizadoEm ?? criadoEm;
 
   Map<String, Object?> toMap() => {
         'id': id,
         'nascimento_id': nascimentoId,
+        'tipo_baixa': tipoBaixa,
         'data_morte': dataMorte.toIso8601String(),
         'fazenda': fazenda,
         'foto1': foto1,
@@ -57,6 +66,7 @@ class Morte {
   static Morte fromMap(Map<String, Object?> m) => Morte(
         id: m['id'] as int?,
         nascimentoId: m['nascimento_id'] as int,
+        tipoBaixa: (m['tipo_baixa'] as String?) ?? tipoMorte,
         dataMorte: DateTime.parse(m['data_morte'] as String),
         fazenda: m['fazenda'] as String,
         foto1: m['foto1'] as String?,

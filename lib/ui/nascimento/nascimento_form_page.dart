@@ -317,6 +317,18 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
 
   Future<void> _save() async {
     print('Entrou no _save do NascimentoFormPage, cria=${_cria.text}');
+    final fazendaSessao = AppSession.fazendaSelecionada?.trim();
+    if (fazendaSessao == null || fazendaSessao.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Selecione uma fazenda na sessão antes de salvar o nascimento.'),
+        ),
+      );
+      return;
+    }
+
     if (_idCria.text.trim().isEmpty || _cria.text.trim().isEmpty) {
       await _gerarCriaAoAbrir();
       if (!mounted) return;
@@ -417,7 +429,18 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
     print(
         '[NascimentoFormPage._validarMaeDaSessao] maeId=$maeId fazendaSessao=$fazendaSessao');
 
-    if (maeId.isEmpty || fazendaSessao == null || fazendaSessao.isEmpty) {
+    if (fazendaSessao == null || fazendaSessao.isEmpty) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Selecione uma fazenda na sessão para validar e registrar o nascimento.'),
+        ),
+      );
+      return false;
+    }
+
+    if (maeId.isEmpty) {
       return true;
     }
 
