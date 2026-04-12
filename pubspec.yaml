@@ -17,6 +17,7 @@ dependencies:
   path_provider: ^2.1.4
   image_picker: ^0.8.7+5
   share_plus: ^10.0.2
+  file_picker: ^8.1.2
   geolocator: ^11.0.0
   geocoding: ^3.0.0
   supabase_flutter: ^2.0.0

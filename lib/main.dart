@@ -133,6 +133,12 @@ class _BezerraRanchAppState extends State<BezerraRanchApp>
     try {
       final temConexao = await _syncController.verificarConexao();
       if (temConexao) {
+        final precisaSincronizar =
+            await _syncController.deveSincronizarAutomatico();
+        if (!precisaSincronizar) {
+          print('ℹ️ Sync automática ignorada (versão local já atualizada).');
+          return;
+        }
         await _syncController.sincronizar();
       } else {
         print('⚠️ Sem conexão com internet, sincronização adiada');

@@ -47,19 +47,36 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
   }
 
   Future<void> _sincronizarAutomatico() async {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('🔄 Sincronizando...'),
-            backgroundColor: Colors.blueGrey,
-          ),
-        );
-    }
     try {
       final temConexao = await _syncController.verificarConexao();
       if (temConexao) {
+        final precisaSincronizar =
+            await _syncController.deveSincronizarAutomatico();
+        if (!precisaSincronizar) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('✅ Dados já atualizados.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+          }
+          return;
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text('🔄 Sincronizando...'),
+                backgroundColor: Colors.blueGrey,
+              ),
+            );
+        }
+
         await _syncController.sincronizar();
         if (mounted) {
           ScaffoldMessenger.of(context)
@@ -142,6 +159,92 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
       );
     } finally {
       if (mounted) setState(() => _sincronizando = false);
+    }
+  }
+
+  Future<void> _sincronizarModulo({
+    required String nomeModulo,
+    required Future<void> Function() acao,
+  }) async {
+    setState(() => _sincronizando = true);
+
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('🔄 Sincronizando $nomeModulo...'),
+              backgroundColor: Colors.blueGrey,
+            ),
+          );
+      }
+
+      final temConexao = await _syncController.verificarConexao();
+      if (!temConexao) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Sem conexão com internet'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      await acao();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Sincronização de $nomeModulo concluída!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erro na sincronização de $nomeModulo: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sincronizando = false);
+    }
+  }
+
+  Future<void> _onSyncOptionSelected(String value) async {
+    if (value == 'total') {
+      await _sincronizarManual();
+      return;
+    }
+    if (value == 'animais') {
+      await _sincronizarModulo(
+        nomeModulo: 'Animais',
+        acao: _syncController.sincronizarAnimais,
+      );
+      return;
+    }
+    if (value == 'nascimentos') {
+      await _sincronizarModulo(
+        nomeModulo: 'Nascimento',
+        acao: _syncController.sincronizarNascimentos,
+      );
+      return;
+    }
+    if (value == 'baixas') {
+      await _sincronizarModulo(
+        nomeModulo: 'Baixas',
+        acao: _syncController.sincronizarBaixas,
+      );
+      return;
+    }
+    if (value == 'transferencias') {
+      await _sincronizarModulo(
+        nomeModulo: 'Transferências',
+        acao: _syncController.sincronizarTransferencias,
+      );
     }
   }
 
@@ -245,20 +348,47 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
               ),
               icon: const Icon(Icons.admin_panel_settings),
             ),
-          IconButton(
-            tooltip: 'Sincronizar com Nuvem',
-            onPressed: _sincronizando ? null : _sincronizarManual,
-            icon: _sincronizando
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          _sincronizando
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     ),
-                  )
-                : const Icon(Icons.cloud_upload),
-          ),
+                  ),
+                )
+              : PopupMenuButton<String>(
+                  tooltip: 'Sincronizar com Nuvem',
+                  icon: const Icon(Icons.cloud_upload),
+                  onSelected: _onSyncOptionSelected,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'total',
+                      child: Text('Sincronização total'),
+                    ),
+                    PopupMenuItem(
+                      value: 'animais',
+                      child: Text('Sincronizar Animais'),
+                    ),
+                    PopupMenuItem(
+                      value: 'nascimentos',
+                      child: Text('Sincronizar Nascimento'),
+                    ),
+                    PopupMenuItem(
+                      value: 'baixas',
+                      child: Text('Sincronizar Baixas'),
+                    ),
+                    PopupMenuItem(
+                      value: 'transferencias',
+                      child: Text('Sincronizar Transferências'),
+                    ),
+                  ],
+                ),
           IconButton(
             tooltip: 'Sair',
             onPressed: _logout,
@@ -340,14 +470,19 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Animais',
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AnimalListPage()),
-        ),
-        child: const Icon(Icons.pets),
-      ),
+      floatingActionButton: AppSession.isAdmin
+          ? FloatingActionButton(
+              tooltip: 'Animais',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AnimalListPage()),
+              ),
+              child: const Text(
+                '🐄',
+                style: TextStyle(fontSize: 24),
+              ),
+            )
+          : null,
     );
   }
 }

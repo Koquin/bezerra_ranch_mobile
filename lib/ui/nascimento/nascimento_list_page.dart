@@ -114,6 +114,65 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
     }
   }
 
+  Future<void> _importarCsv() async {
+    final usuarioId = AppSession.usuarioId;
+    if (usuarioId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário não identificado na sessão.')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(days: 1),
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Importando CSV...')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await _export.importNascimentosCsv(
+        usuarioId: usuarioId,
+        fazendaFallback: AppSession.fazendaSelecionada,
+      );
+      if (result.cancelled) {
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Importação cancelada.')),
+        );
+        return;
+      }
+
+      await _load(q: _search.text);
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'Importação concluída. Importados: ${result.imported}. Ignorados: ${result.skipped}.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text('Falha ao importar: $e')));
+    }
+  }
+
   Future<void> _editarNascimento(Nascimento n) async {
     print('[NascimentoListPage._editarNascimento] id=${n.id} cria=${n.cria}');
     final ok = await Navigator.push<bool>(
@@ -219,40 +278,38 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
       appBar: AppBar(
         title: const Text('Nascimento'),
         actions: [
-          PopupMenuButton<String>(
-            tooltip: 'Opções CSV',
-            icon: const Icon(Icons.file_download_outlined),
-            onSelected: (value) async {
-              if (value == 'exportar') {
-                if (_items.isEmpty) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nenhum dado para exportar.')),
-                  );
+          if (AppSession.isAdmin)
+            PopupMenuButton<String>(
+              tooltip: 'Opções CSV',
+              icon: const Icon(Icons.file_download_outlined),
+              onSelected: (value) async {
+                if (value == 'exportar') {
+                  if (_items.isEmpty) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Nenhum dado para exportar.')),
+                    );
+                    return;
+                  }
+                  await _exportarCsv();
                   return;
                 }
-                await _exportarCsv();
-                return;
-              }
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content:
-                        Text('Importação CSV será habilitada em seguida.')),
-              );
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'exportar',
-                child: Text('Exportar CSV'),
-              ),
-              PopupMenuItem(
-                value: 'importar',
-                child: Text('Importar CSV'),
-              ),
-            ],
-          ),
+                if (value == 'importar') {
+                  await _importarCsv();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'exportar',
+                  child: Text('Exportar CSV'),
+                ),
+                PopupMenuItem(
+                  value: 'importar',
+                  child: Text('Importar CSV'),
+                ),
+              ],
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -268,7 +325,7 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar',
+                  labelText: 'Pesquisar por CRIA',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),

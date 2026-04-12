@@ -650,7 +650,7 @@ class _SelecionarAnimaisModalPageState
                 controller: _search,
                 onChanged: (v) => _load(q: v),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar',
+                  labelText: 'Pesquisar por CRIA',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),
@@ -672,7 +672,10 @@ class _SelecionarAnimaisModalPageState
                             final selected =
                                 n.id != null && _selectedIds.contains(n.id!);
                             return ListTile(
-                              leading: const Icon(Icons.pets),
+                              leading: const Icon(
+                                Icons.eco,
+                                color: Colors.green,
+                              ),
                               title: Text(n.cria,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w800)),

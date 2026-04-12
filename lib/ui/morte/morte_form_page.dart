@@ -74,7 +74,8 @@ class _MorteFormPageState extends State<MorteFormPage> {
   @override
   void initState() {
     super.initState();
-    _dataMorte = widget.nascimento.dataNascimento;
+    // Nova baixa deve iniciar com a data atual.
+    _dataMorte = DateTime.now();
     _fazendaController = TextEditingController(
       text: AppSession.fazendaSelecionada ?? widget.nascimento.fazenda,
     );
@@ -305,12 +306,12 @@ class _MorteFormPageState extends State<MorteFormPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              // Data morte
+              // Data baixa
               Row(
                 children: [
                   const Icon(Icons.close, color: Colors.red),
                   const SizedBox(width: 8),
-                  Text('Data da morte:'),
+                  Text('Data da baixa:'),
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: widget.readOnly
@@ -441,7 +442,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
               // Identificadores
               Row(
                 children: [
-                  Expanded(child: Text('ID CRIA: ${n.cria}')),
+                  Expanded(child: Text('ID Animal: ${n.cria}')),
                   Expanded(
                       child: Text('ID Vaca: ${n.mae.isEmpty ? "N/A" : n.mae}')),
                 ],
@@ -530,7 +531,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
                 ),
               const Divider(),
               const SizedBox(height: 8),
-              const Text('DADOS DA MORTE',
+              const Text('DADOS DA BAIXA',
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,

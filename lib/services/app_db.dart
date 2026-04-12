@@ -64,7 +64,6 @@ class AppDb {
   }
 
   static Future<Database> getDb() async {
-    print('Entrou no getDb do AppDb');
     if (_db != null) return _db!;
 
     final dbPath = await getDatabasesPath();
@@ -298,10 +297,19 @@ class AppDb {
               "UPDATE solicitacao_faixa SET atualizado_em = solicitado_em WHERE atualizado_em IS NULL;");
         }
         if (oldVersion < 7) {
-          await db.execute("ALTER TABLE nascimento RENAME TO nascimento_log;");
+          final tables = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('nascimento','nascimento_log','animal')");
+          final hasNascimento = tables.any((t) => t['name'] == 'nascimento');
+          final hasNascimentoLog =
+              tables.any((t) => t['name'] == 'nascimento_log');
+
+          if (hasNascimento && !hasNascimentoLog) {
+            await db
+                .execute("ALTER TABLE nascimento RENAME TO nascimento_log;");
+          }
 
           await db.execute('''
-            CREATE TABLE animal (
+            CREATE TABLE IF NOT EXISTS animal (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               cria TEXT NOT NULL UNIQUE,
               mae TEXT NOT NULL,
@@ -325,23 +333,76 @@ class AppDb {
             );
           ''');
 
-          await db.execute(
-              "INSERT INTO animal (id, cria, mae, sexo, raca, pelagem, data_nascimento, fazenda, observacao, foto1, foto2, foto3, location_cidade, location_bairro, location_latitude, location_longitude, usuario_id, criado_em, atualizado_em, status) SELECT id, cria, mae, sexo, raca, pelagem, data_nascimento, fazenda, observacao, foto1, foto2, foto3, location_cidade, location_bairro, location_latitude, location_longitude, usuario_id, criado_em, atualizado_em, CASE WHEN IFNULL(morto,0)=1 THEN 'MORTO' ELSE 'ATIVO' END FROM nascimento_log;");
+          final tablesAfterRename = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='nascimento_log'");
+          final hasNascimentoLogAfterRename = tablesAfterRename.isNotEmpty;
 
-          await db.execute(
-              "ALTER TABLE nascimento_log ADD COLUMN animal_id INTEGER;");
-          await db.execute(
-              "UPDATE nascimento_log SET animal_id = id WHERE animal_id IS NULL;");
+          if (hasNascimentoLogAfterRename) {
+            final colsNascLog =
+                await db.rawQuery("PRAGMA table_info(nascimento_log);");
+            final hasMortoOnLog = colsNascLog.any((c) => c['name'] == 'morto');
+            final hasAnimalId =
+                colsNascLog.any((c) => c['name'] == 'animal_id');
+
+            final statusExpr = hasMortoOnLog
+                ? "CASE WHEN IFNULL(morto,0)=1 THEN 'MORTO' ELSE 'ATIVO' END"
+                : "'ATIVO'";
+
+            await db.execute(
+                "INSERT OR IGNORE INTO animal (id, cria, mae, sexo, raca, pelagem, data_nascimento, fazenda, observacao, foto1, foto2, foto3, location_cidade, location_bairro, location_latitude, location_longitude, usuario_id, criado_em, atualizado_em, status) SELECT id, cria, mae, sexo, raca, pelagem, data_nascimento, fazenda, observacao, foto1, foto2, foto3, location_cidade, location_bairro, location_latitude, location_longitude, usuario_id, criado_em, atualizado_em, $statusExpr FROM nascimento_log;");
+
+            if (!hasAnimalId) {
+              await db.execute(
+                  "ALTER TABLE nascimento_log ADD COLUMN animal_id INTEGER;");
+            }
+            await db.execute(
+                "UPDATE nascimento_log SET animal_id = id WHERE animal_id IS NULL;");
+          }
         }
         if (oldVersion < 8) {
-          await db.execute("ALTER TABLE animal ADD COLUMN peso REAL;");
-          await db.execute("ALTER TABLE nascimento_log ADD COLUMN peso REAL;");
+          final animalCols = await db.rawQuery("PRAGMA table_info(animal);");
+          final hasAnimalPeso = animalCols.any((c) => c['name'] == 'peso');
+          if (!hasAnimalPeso) {
+            await db.execute("ALTER TABLE animal ADD COLUMN peso REAL;");
+          }
+
+          final nascLogExists = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='nascimento_log'");
+          if (nascLogExists.isNotEmpty) {
+            final nascLogCols =
+                await db.rawQuery("PRAGMA table_info(nascimento_log);");
+            final hasNascLogPeso = nascLogCols.any((c) => c['name'] == 'peso');
+            if (!hasNascLogPeso) {
+              await db
+                  .execute("ALTER TABLE nascimento_log ADD COLUMN peso REAL;");
+            }
+          }
         }
         if (oldVersion < 9) {
-          await db.execute(
-              "ALTER TABLE animal ADD COLUMN status TEXT NOT NULL DEFAULT 'ATIVO';");
-          await db.execute(
-              "UPDATE animal SET status = CASE WHEN IFNULL(morto, 0) = 1 THEN 'MORTO' ELSE 'ATIVO' END WHERE status IS NULL OR TRIM(status) = '';");
+          final cols = await db.rawQuery("PRAGMA table_info(animal);");
+          final hasStatus = cols.any((c) => c['name'] == 'status');
+          final hasMorto = cols.any((c) => c['name'] == 'morto');
+
+          if (!hasStatus) {
+            await db.execute(
+                "ALTER TABLE animal ADD COLUMN status TEXT NOT NULL DEFAULT 'ATIVO';");
+          }
+
+          if (hasMorto) {
+            await db.execute(
+                "UPDATE animal SET status = CASE WHEN IFNULL(morto, 0) = 1 THEN 'MORTO' ELSE 'ATIVO' END WHERE status IS NULL OR TRIM(CAST(status AS TEXT)) = '';");
+          } else {
+            await db.execute('''
+              UPDATE animal
+              SET status = CASE
+                WHEN UPPER(TRIM(CAST(status AS TEXT))) IN ('ATIVO','VENDIDO','MORTO','ABATIDO')
+                  THEN UPPER(TRIM(CAST(status AS TEXT)))
+                WHEN TRIM(CAST(status AS TEXT)) IN ('1', 'true', 'TRUE')
+                  THEN 'MORTO'
+                ELSE 'ATIVO'
+              END;
+            ''');
+          }
         }
         if (oldVersion < 10) {
           final cols = await db.rawQuery("PRAGMA table_info(animal);");
@@ -377,10 +438,33 @@ class AppDb {
           }
         }
         if (oldVersion < 11) {
-          await db.execute("ALTER TABLE animal ADD COLUMN lote TEXT;");
-          await db.execute("ALTER TABLE animal ADD COLUMN pasto TEXT;");
-          await db.execute("ALTER TABLE nascimento_log ADD COLUMN lote TEXT;");
-          await db.execute("ALTER TABLE nascimento_log ADD COLUMN pasto TEXT;");
+          final animalCols = await db.rawQuery("PRAGMA table_info(animal);");
+          final hasLoteAnimal = animalCols.any((c) => c['name'] == 'lote');
+          final hasPastoAnimal = animalCols.any((c) => c['name'] == 'pasto');
+          if (!hasLoteAnimal) {
+            await db.execute("ALTER TABLE animal ADD COLUMN lote TEXT;");
+          }
+          if (!hasPastoAnimal) {
+            await db.execute("ALTER TABLE animal ADD COLUMN pasto TEXT;");
+          }
+
+          final nascLogExists = await db.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='nascimento_log'");
+          if (nascLogExists.isNotEmpty) {
+            final nascLogCols =
+                await db.rawQuery("PRAGMA table_info(nascimento_log);");
+            final hasLoteNascLog = nascLogCols.any((c) => c['name'] == 'lote');
+            final hasPastoNascLog =
+                nascLogCols.any((c) => c['name'] == 'pasto');
+            if (!hasLoteNascLog) {
+              await db
+                  .execute("ALTER TABLE nascimento_log ADD COLUMN lote TEXT;");
+            }
+            if (!hasPastoNascLog) {
+              await db
+                  .execute("ALTER TABLE nascimento_log ADD COLUMN pasto TEXT;");
+            }
+          }
 
           await db.execute('''
             CREATE TABLE IF NOT EXISTS transferencia_log (

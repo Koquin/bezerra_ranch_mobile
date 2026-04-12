@@ -21,6 +21,36 @@ class NascimentoFormPage extends StatefulWidget {
 }
 
 class _NascimentoFormPageState extends State<NascimentoFormPage> {
+  static const List<String> _racaOptions = [
+    'NELORE',
+    'CRUZADO',
+    'CANCHIM',
+    'ABERDEEN ANGUS',
+    'GIR',
+    'GIR LEITEIRO',
+    'CHAROLÊS',
+    'SENEPOL',
+    'SINDI',
+    'GUZERÁ',
+    'CARACU',
+  ];
+
+  static const List<String> _pelagemOptions = [
+    'BRANCA',
+    'CINZA',
+    'PRETA',
+    'VERMELHO',
+    'MALHADA',
+    'RAJADA',
+    'CEREJA',
+    'CHITA  DE VERMELHO',
+    'MANCHADA',
+    'MARROM',
+    'AMARELA',
+    'VERMELHA CHITADA',
+    'BEGE',
+  ];
+
   final _controller = NascimentoController();
   final _animalService = AnimalService();
   final _formKey = GlobalKey<FormState>();
@@ -50,6 +80,38 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
   String? _locationError;
 
   final _fmt = DateFormat('dd/MM/yyyy');
+
+  String? _normalizeRacaSelection(String? value) {
+    final v = value?.trim();
+    if (v == null || v.isEmpty) return null;
+    final upper = v.toUpperCase();
+    if (_racaOptions.contains(upper)) return upper;
+
+    const aliases = {
+      'GUZERA': 'GUZERÁ',
+      'GUZERA ': 'GUZERÁ',
+      'GUZERÁ': 'GUZERÁ',
+      'GUZERÁ': 'GUZERÁ',
+      'CHAROLES': 'CHAROLÊS',
+      'CHAROLES ': 'CHAROLÊS',
+      'CHAROLÊS': 'CHAROLÊS',
+    };
+    return aliases[upper];
+  }
+
+  String? _normalizePelagemSelection(String? value) {
+    final v = value?.trim();
+    if (v == null || v.isEmpty) return null;
+    final upper = v.toUpperCase();
+    if (_pelagemOptions.contains(upper)) return upper;
+
+    const aliases = {
+      'PRETA': 'RPETA',
+      'VERMELHA': 'VERMELHO',
+      'CHITA DE VERMELHO': 'CHITA  DE VERMELHO',
+    };
+    return aliases[upper];
+  }
 
   bool get _fazendaFixaPorSessao =>
       widget.nascimento == null && (AppSession.fazendaSelecionada != null);
@@ -95,9 +157,9 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
       _idCria.text = n.cria;
       _mae.text = n.mae;
       _sexo.text = n.sexo;
-      _raca.text = n.raca;
+      _raca.text = _normalizeRacaSelection(n.raca) ?? n.raca;
       _peso.text = n.peso?.toString() ?? '';
-      _pelagem.text = n.pelagem;
+      _pelagem.text = _normalizePelagemSelection(n.pelagem) ?? n.pelagem;
       _fazenda.text = n.fazenda;
       _dataNasc = n.dataNascimento;
       _dataController.text = _fmt.format(n.dataNascimento);
@@ -393,35 +455,6 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
     }
   }
 
-  void _limparFormulario() {
-    setState(() {
-      _cria.clear();
-      _idCria.clear();
-      _mae.clear();
-      _sexo.text = 'M';
-      _raca.clear();
-      _peso.clear();
-      _pelagem.clear();
-      _obs.clear();
-      _photos.clear();
-      _fotoPath = null;
-      _locationCidade = null;
-      _locationBairro = null;
-      _locationLatitude = null;
-      _locationLongitude = null;
-      _locationError = null;
-      _locationLoading = false;
-      _dataNasc = DateTime.now();
-      _dataController.text = _fmt.format(_dataNasc);
-
-      if (_fazendaFixaPorSessao && AppSession.fazendaSelecionada != null) {
-        _fazenda.text = AppSession.fazendaSelecionada!.trim();
-      } else {
-        _fazenda.clear();
-      }
-    });
-  }
-
   Future<bool> _validarMaeDaSessao({required bool limparSeInvalida}) async {
     final maeId = _mae.text.trim();
     final fazendaSessao = AppSession.fazendaSelecionada?.trim();
@@ -462,7 +495,9 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
     );
 
     if (limparSeInvalida) {
-      _limparFormulario();
+      setState(() {
+        _mae.clear();
+      });
     }
     return false;
   }
@@ -573,61 +608,6 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
               ),
               const SizedBox(height: 12),
 
-              // Localização
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Colors.black12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on, color: Colors.green),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'Geolocalização',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          if (!widget.readOnly)
-                            IconButton(
-                              tooltip: 'Atualizar localização',
-                              onPressed: _capturarLocalizacao,
-                              icon: const Icon(Icons.refresh),
-                            ),
-                        ],
-                      ),
-                      if (_locationLoading)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: LinearProgressIndicator(minHeight: 2),
-                        ),
-                      if (_locationError != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            _locationError!,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      Text('Cidade: ${_locationCidade ?? '-'}'),
-                      Text('Bairro: ${_locationBairro ?? '-'}'),
-                      Text(
-                        'Coordenadas: ${_formatCoord(_locationLatitude)}, ${_formatCoord(_locationLongitude)}',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
               // Row 3: ID VACA (mãe) | ID CRIA
               Row(
                 children: [
@@ -689,22 +669,14 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _raca.text.isEmpty ? null : _raca.text,
+                      value: _normalizeRacaSelection(_raca.text),
                       decoration: const InputDecoration(labelText: 'Raça'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Nelore', child: Text('Nelore')),
-                        DropdownMenuItem(
-                            value: 'Cruzado', child: Text('Cruzado')),
-                        DropdownMenuItem(
-                            value: 'Guzerá', child: Text('Guzerá')),
-                        DropdownMenuItem(
-                            value: 'Aberdeen Angus',
-                            child: Text('Aberdeen Angus')),
-                        DropdownMenuItem(
-                            value: 'Senepol', child: Text('Senepol')),
-                        DropdownMenuItem(value: 'Gir', child: Text('Gir')),
-                      ],
+                      items: _racaOptions
+                          .map((r) => DropdownMenuItem<String>(
+                                value: r,
+                                child: Text(r),
+                              ))
+                          .toList(),
                       onChanged: widget.readOnly
                           ? null
                           : (v) => setState(() => _raca.text = v ?? ''),
@@ -723,19 +695,14 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
                   Expanded(
                     flex: 2,
                     child: DropdownButtonFormField<String>(
-                      value: _pelagem.text.isEmpty ? null : _pelagem.text,
+                      value: _normalizePelagemSelection(_pelagem.text),
                       decoration: const InputDecoration(labelText: 'Pelagem'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Branca', child: Text('Branca')),
-                        DropdownMenuItem(value: 'Preta', child: Text('Preta')),
-                        DropdownMenuItem(value: 'Cinza', child: Text('Cinza')),
-                        DropdownMenuItem(
-                            value: 'Amarela', child: Text('Amarela')),
-                        DropdownMenuItem(value: 'Bege', child: Text('Bege')),
-                        DropdownMenuItem(
-                            value: 'Marrom', child: Text('Marrom')),
-                      ],
+                      items: _pelagemOptions
+                          .map((p) => DropdownMenuItem<String>(
+                                value: p,
+                                child: Text(p),
+                              ))
+                          .toList(),
                       onChanged: widget.readOnly
                           ? null
                           : (v) => setState(() => _pelagem.text = v ?? ''),
@@ -789,6 +756,61 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
                 maxLines: 4,
                 decoration: const InputDecoration(labelText: 'Descrição'),
                 enabled: !widget.readOnly,
+              ),
+              const SizedBox(height: 12),
+
+              // Localização
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Colors.black12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on, color: Colors.green),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Geolocalização',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          if (!widget.readOnly)
+                            IconButton(
+                              tooltip: 'Atualizar localização',
+                              onPressed: _capturarLocalizacao,
+                              icon: const Icon(Icons.refresh),
+                            ),
+                        ],
+                      ),
+                      if (_locationLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        ),
+                      if (_locationError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _locationError!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Text('Cidade: ${_locationCidade ?? '-'}'),
+                      Text('Bairro: ${_locationBairro ?? '-'}'),
+                      Text(
+                        'Coordenadas: ${_formatCoord(_locationLatitude)}, ${_formatCoord(_locationLongitude)}',
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
 

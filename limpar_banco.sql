@@ -1,20 +1,22 @@
--- Script para limpar todos os dados do banco de dados
--- Execute no Supabase SQL Editor
+-- Script para limpar dados operacionais no Supabase
+-- Mantém a tabela de usuários intacta.
+-- Execute no Supabase SQL Editor.
 
--- Apagar dados respeitando as foreign keys (ordem importante)
-DELETE FROM morte;
-DELETE FROM nascimento;
-DELETE FROM solicitacao_faixa;
-DELETE FROM usuario WHERE admin IS NOT TRUE;
+BEGIN;
 
--- Atualiza versão de sincronização (força reset nos apps)
-UPDATE app_config
+-- Limpa tabelas de rotina e reinicia os IDs para começar em 1.
+TRUNCATE TABLE
+    public.baixa_log,
+    public.transferencia_log,
+    public.nascimento_log,
+    public.animal,
+    public.solicitacao_faixa
+RESTART IDENTITY;
+
+-- Atualiza versão de sincronização (força reset nos apps).
+UPDATE public.app_config
 SET value = (value::int + 1)::text,
-    atualizado_em = NOW()
+        atualizado_em = NOW()
 WHERE key = 'sync_version';
 
--- Opcional: Resetar sequences (IDs voltam para 1)
-SELECT setval(pg_get_serial_sequence('morte', 'id'), 1);
-SELECT setval(pg_get_serial_sequence('nascimento', 'id'), 1);
-SELECT setval(pg_get_serial_sequence('solicitacao_faixa', 'id'), 1);
-SELECT setval(pg_get_serial_sequence('usuario', 'id'), 1);
+COMMIT;

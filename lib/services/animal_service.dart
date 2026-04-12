@@ -39,9 +39,8 @@ class AnimalService {
     final term = '%${q.trim()}%';
     final rows = await db.query(
       'animal',
-      where:
-          'cria LIKE ? OR mae LIKE ? OR fazenda LIKE ? OR raca LIKE ? OR pelagem LIKE ? OR sexo LIKE ?',
-      whereArgs: [term, term, term, term, term, term],
+      where: 'cria LIKE ?',
+      whereArgs: [term],
       orderBy: 'criado_em DESC',
     );
     return rows.map(Nascimento.fromMap).toList();

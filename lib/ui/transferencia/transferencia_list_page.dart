@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_runtime_config.dart';
 import '../../controllers/transferencia_controller.dart';
+import '../../session/app_session.dart';
 import '../../services/export_service.dart';
 import 'transferencia_page.dart';
 
@@ -69,6 +70,64 @@ class _TransferenciaListPageState extends State<TransferenciaListPage> {
     }
   }
 
+  Future<void> _importarCsv() async {
+    final usuarioId = AppSession.usuarioId;
+    if (usuarioId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário não identificado na sessão.')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(days: 1),
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Importando CSV...')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await _export.importTransferenciasCsv(
+        usuarioId: usuarioId,
+      );
+      if (result.cancelled) {
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Importação cancelada.')),
+        );
+        return;
+      }
+
+      await _load(q: _search.text);
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'Importação concluída. Importados: ${result.imported}. Ignorados: ${result.skipped}.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text('Falha ao importar: $e')));
+    }
+  }
+
   bool _isInconsistency(Map<String, Object?> row) {
     final value = row['is_inconsistency'];
     if (value is int) return value == 1;
@@ -94,40 +153,38 @@ class _TransferenciaListPageState extends State<TransferenciaListPage> {
       appBar: AppBar(
         title: const Text('Transferências'),
         actions: [
-          PopupMenuButton<String>(
-            tooltip: 'Opções CSV',
-            icon: const Icon(Icons.file_download_outlined),
-            onSelected: (value) async {
-              if (value == 'exportar') {
-                if (_items.isEmpty) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nenhum dado para exportar.')),
-                  );
+          if (AppSession.isAdmin)
+            PopupMenuButton<String>(
+              tooltip: 'Opções CSV',
+              icon: const Icon(Icons.file_download_outlined),
+              onSelected: (value) async {
+                if (value == 'exportar') {
+                  if (_items.isEmpty) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Nenhum dado para exportar.')),
+                    );
+                    return;
+                  }
+                  await _exportarCsv();
                   return;
                 }
-                await _exportarCsv();
-                return;
-              }
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content:
-                        Text('Importação CSV será habilitada em seguida.')),
-              );
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'exportar',
-                child: Text('Exportar CSV'),
-              ),
-              PopupMenuItem(
-                value: 'importar',
-                child: Text('Importar CSV'),
-              ),
-            ],
-          ),
+                if (value == 'importar') {
+                  await _importarCsv();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'exportar',
+                  child: Text('Exportar CSV'),
+                ),
+                PopupMenuItem(
+                  value: 'importar',
+                  child: Text('Importar CSV'),
+                ),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
@@ -139,7 +196,7 @@ class _TransferenciaListPageState extends State<TransferenciaListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar',
+                  labelText: 'Pesquisar por CRIA',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),

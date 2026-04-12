@@ -6,6 +6,7 @@ import '../../config/app_runtime_config.dart';
 import '../../controllers/animal_controller.dart';
 import '../../controllers/morte_controller.dart';
 import '../../models/morte.dart';
+import '../../session/app_session.dart';
 import '../../services/export_service.dart';
 
 import '../../models/nascimento.dart';
@@ -37,6 +38,65 @@ class _MorteListPageState extends State<MorteListPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Falha ao exportar: $e')));
+    }
+  }
+
+  Future<void> _importarCsv() async {
+    final usuarioId = AppSession.usuarioId;
+    if (usuarioId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário não identificado na sessão.')),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(days: 1),
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Importando CSV...')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await _export.importBaixasCsv(
+        usuarioId: usuarioId,
+        fazendaFallback: AppSession.fazendaSelecionada,
+      );
+      if (result.cancelled) {
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Importação cancelada.')),
+        );
+        return;
+      }
+
+      await _load(q: _search.text);
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              'Importação concluída. Importados: ${result.imported}. Ignorados: ${result.skipped}.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text('Falha ao importar: $e')));
     }
   }
 
@@ -144,16 +204,8 @@ class _MorteListPageState extends State<MorteListPage> {
     if (term != null && term.isNotEmpty) {
       itens = itens.where((item) {
         final animal = item.animal;
-        final tipo = item.baixa.tipoBaixa.toLowerCase();
-        final causa = (item.baixa.descricao ?? '').toLowerCase();
-        final fazenda = item.baixa.fazenda.toLowerCase();
         final cria = (animal?.cria ?? '').toLowerCase();
-        final mae = (animal?.mae ?? '').toLowerCase();
-        return tipo.contains(term) ||
-            causa.contains(term) ||
-            fazenda.contains(term) ||
-            cria.contains(term) ||
-            mae.contains(term);
+        return cria.contains(term);
       }).toList();
     }
 
@@ -192,40 +244,38 @@ class _MorteListPageState extends State<MorteListPage> {
       appBar: AppBar(
         title: const Text('Baixas'),
         actions: [
-          PopupMenuButton<String>(
-            tooltip: 'Opções CSV',
-            icon: const Icon(Icons.file_download_outlined),
-            onSelected: (value) async {
-              if (value == 'exportar') {
-                if (_items.isEmpty) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nenhum dado para exportar.')),
-                  );
+          if (AppSession.isAdmin)
+            PopupMenuButton<String>(
+              tooltip: 'Opções CSV',
+              icon: const Icon(Icons.file_download_outlined),
+              onSelected: (value) async {
+                if (value == 'exportar') {
+                  if (_items.isEmpty) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Nenhum dado para exportar.')),
+                    );
+                    return;
+                  }
+                  await _exportarCsv();
                   return;
                 }
-                await _exportarCsv();
-                return;
-              }
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content:
-                        Text('Importação CSV será habilitada em seguida.')),
-              );
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'exportar',
-                child: Text('Exportar CSV'),
-              ),
-              PopupMenuItem(
-                value: 'importar',
-                child: Text('Importar CSV'),
-              ),
-            ],
-          ),
+                if (value == 'importar') {
+                  await _importarCsv();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'exportar',
+                  child: Text('Exportar CSV'),
+                ),
+                PopupMenuItem(
+                  value: 'importar',
+                  child: Text('Importar CSV'),
+                ),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
@@ -237,7 +287,7 @@ class _MorteListPageState extends State<MorteListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar',
+                  labelText: 'Pesquisar por CRIA',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),
@@ -417,32 +467,13 @@ class _SelecionarAnimalPageState extends State<_SelecionarAnimalPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar',
+                  labelText: 'Pesquisar por CRIA',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),
                   ),
                 ),
                 onSubmitted: (_) => _load(q: _search.text),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black12),
-                ),
-                child: Text(
-                  'Animais disponíveis: ${_items.length}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
-                ),
               ),
             ),
             const Divider(height: 1),
@@ -457,7 +488,10 @@ class _SelecionarAnimalPageState extends State<_SelecionarAnimalPage> {
                           itemBuilder: (_, i) {
                             final n = _items[i];
                             return ListTile(
-                              leading: const Icon(Icons.pets),
+                              leading: const Icon(
+                                Icons.eco,
+                                color: Colors.green,
+                              ),
                               title: Text(n.cria,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w900)),

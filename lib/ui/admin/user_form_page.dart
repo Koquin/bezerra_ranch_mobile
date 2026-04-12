@@ -62,10 +62,11 @@ class _UserFormPageState extends State<UserFormPage> {
   String? _valPrefixo(String? v) {
     print('Entrou no _valPrefixo do UserFormPage, v=$v');
     final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Informe o prefixo (1 letra)';
-    if (s.length != 1) return 'Use apenas 1 letra';
-    if (!RegExp(r'^[A-Za-z]$').hasMatch(s))
-      return 'O prefixo deve ser uma letra';
+    if (s.isEmpty) return 'Informe o prefixo';
+    if (s.length > 10) return 'Use no máximo 10 caracteres';
+    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(s)) {
+      return 'Use apenas letras e números';
+    }
     return null;
   }
 
@@ -191,7 +192,11 @@ class _UserFormPageState extends State<UserFormPage> {
                   Expanded(
                     child: TextFormField(
                       controller: _prefixo,
-                      decoration: const InputDecoration(labelText: 'Prefixo'),
+                      maxLength: 10,
+                      decoration: const InputDecoration(
+                        labelText: 'Prefixo',
+                        counterText: '',
+                      ),
                       validator: _valPrefixo,
                     ),
                   ),

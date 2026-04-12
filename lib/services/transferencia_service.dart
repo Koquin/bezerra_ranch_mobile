@@ -26,17 +26,9 @@ class TransferenciaService {
         t.*, a.cria AS animal_cria
       FROM transferencia_log t
       LEFT JOIN animal a ON a.id = t.animal_id
-      WHERE
-        a.cria LIKE ? OR
-        t.fazenda_origem LIKE ? OR
-        t.fazenda_destino LIKE ? OR
-        IFNULL(t.lote_origem, '') LIKE ? OR
-        IFNULL(t.lote_destino, '') LIKE ? OR
-        IFNULL(t.pasto_origem, '') LIKE ? OR
-        IFNULL(t.pasto_destino, '') LIKE ? OR
-        t.data_transferencia LIKE ?
+      WHERE a.cria LIKE ?
       ORDER BY t.data_registro DESC
-    ''', [term, term, term, term, term, term, term, term]);
+    ''', [term]);
 
     return rows.cast<Map<String, Object?>>();
   }

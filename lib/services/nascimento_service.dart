@@ -14,9 +14,8 @@ class NascimentoService {
     final term = '%${q.trim()}%';
     final rows = await db.query(
       'nascimento_log',
-      where:
-          'cria LIKE ? OR mae LIKE ? OR fazenda LIKE ? OR raca LIKE ? OR pelagem LIKE ? OR sexo LIKE ?',
-      whereArgs: [term, term, term, term, term, term],
+      where: 'cria LIKE ?',
+      whereArgs: [term],
       orderBy: 'criado_em DESC',
     );
     final result = rows.map(Nascimento.fromMap).toList();
@@ -44,9 +43,8 @@ class NascimentoService {
 
     if (q != null && q.trim().isNotEmpty) {
       final term = '%${q.trim()}%';
-      faixaWhere +=
-          ' AND (cria LIKE ? OR mae LIKE ? OR fazenda LIKE ? OR raca LIKE ? OR pelagem LIKE ? OR sexo LIKE ?)';
-      whereArgs.addAll([term, term, term, term, term, term]);
+      faixaWhere += ' AND cria LIKE ?';
+      whereArgs.add(term);
     }
 
     final rows = await db.query(

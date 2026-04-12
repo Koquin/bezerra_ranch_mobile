@@ -7,8 +7,32 @@ class MorteService {
     final db = await AppDb.getDb();
     final rows = await db.query('baixa_log', orderBy: 'criado_em DESC');
     final result = rows.map(Morte.fromMap).toList();
-    print(
-        'MorteService.list retornando ${result.length} registros: ${result.map((m) => m.toMap()).toList()}');
+
+    final animalRows = await db.query(
+      'animal',
+      columns: ['id', 'cria'],
+      where: 'cria = ?',
+      whereArgs: ['I102966'],
+      limit: 1,
+    );
+    if (animalRows.isEmpty) {
+      print('DEBUG baixa I102966: animal não encontrado no banco local.');
+    } else {
+      final animalId = animalRows.first['id'] as int;
+      final baixaRows = await db.query(
+        'baixa_log',
+        where: 'nascimento_id = ?',
+        whereArgs: [animalId],
+        limit: 1,
+      );
+
+      if (baixaRows.isEmpty) {
+        print('DEBUG baixa I102966: animal encontrado (id=$animalId), sem baixa.');
+      } else {
+        print('DEBUG baixa I102966: ${baixaRows.first}');
+      }
+    }
+
     return result;
   }
 
