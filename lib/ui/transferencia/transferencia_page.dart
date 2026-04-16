@@ -96,106 +96,52 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
 
     if (inconsistentes.isEmpty) return true;
 
-    if (inconsistentes.length > 1) {
-      final ids = inconsistentes.map((a) => a.cria).join(', ');
-      final prosseguir = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Inconsistências encontradas'),
-          content: Text(
-              'Vários animais não estão na fazenda de origem selecionada.\nAnimais: $ids\n\nDeseja continuar e registrar como inconsistência?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Salvar mesmo assim'),
-            ),
-          ],
-        ),
-      );
+    final ids = inconsistentes.map((a) => a.cria).join(', ');
+    final titulo = inconsistentes.length == 1
+        ? 'Fazenda de origem divergente'
+        : 'Inconsistências encontradas';
+    final conteudo = inconsistentes.length == 1
+        ? 'O animal $ids não está na fazenda de origem selecionada.\n\nDeseja corrigir automaticamente a inconsistência e transferir para "$origemSelecionada"?'
+        : 'Os animais abaixo não estão na fazenda de origem selecionada:\n$ids\n\nDeseja corrigir automaticamente as inconsistências e transferir todos para "$origemSelecionada"?';
 
-      if (prosseguir == true) {
-        if (!mounted) return false;
-        setState(() {
-          _isInconsistency = true;
-        });
-        return true;
-      }
-
-      return false;
-    }
-
-    final animal = inconsistentes.first;
-    final origemReal = animal.fazenda.trim();
-    final origemAtual = origemSelecionada;
-
-    final trocar = await showDialog<bool>(
+    final corrigir = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Fazenda de origem divergente'),
-        content: Text(
-            'O animal ${animal.cria} não está na fazenda "$origemAtual", e sim na fazenda "$origemReal".\n\nDeseja transferir de "$origemReal" para "$origemAtual"?'),
+        title: Text(titulo),
+        content: Text(conteudo),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Não'),
+            child: const Text('Cancelar'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sim'),
+            child: const Text('Corrigir e transferir'),
           ),
         ],
       ),
     );
 
-    if (trocar != true) {
+    if (corrigir != true) {
       return false;
     }
 
     if (!mounted) return false;
     setState(() {
       _isInconsistency = true;
-      _fazendaOrigem = origemReal;
-      _fazendaDestino = origemAtual;
+      _fazendaDestino = origemSelecionada;
     });
-
-    final novaInconsistencia = _animaisSelecionados
-        .where(
-            (a) => a.fazenda.trim().toUpperCase() != origemReal.toUpperCase())
-        .toList();
-
-    if (novaInconsistencia.isNotEmpty) {
-      final ids = novaInconsistencia.map((a) => a.cria).join(', ');
-      final prosseguir = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Inconsistências após ajuste'),
-          content: Text(
-              'Após o ajuste, ainda existem animais fora da fazenda de origem: $ids.\n\nDeseja continuar e registrar como inconsistência?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Salvar mesmo assim'),
-            ),
-          ],
-        ),
-      );
-
-      if (prosseguir != true) return false;
-    }
 
     return true;
   }
 
   Future<void> _confirmarTransferencia() async {
     _isInconsistency = false;
+
+    final origemSelecionadaUpper = (_fazendaOrigem ?? '').trim().toUpperCase();
+    final temInconsistenciaOrigem = _animaisSelecionados.any(
+      (a) => a.fazenda.trim().toUpperCase() != origemSelecionadaUpper,
+    );
 
     if (_animaisSelecionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -230,33 +176,38 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
     if (!okInconsistencia) return;
     if (!mounted) return;
 
+    final transferenciaPorInconsistencia =
+        _isInconsistency || temInconsistenciaOrigem;
+
     final fazendaOrigem = (_fazendaOrigem ?? '').trim().toUpperCase();
     final fazendaDestino = (_fazendaDestino ?? '').trim().toUpperCase();
     final loteDestino = (_loteDestino ?? '').trim().toUpperCase();
     final pastoDestino = (_pastoDestino ?? '').trim().toUpperCase();
 
-    final semMudanca = _animaisSelecionados.where((a) {
-      final loteOrigem = (a.lote ?? '').trim().toUpperCase();
-      final pastoOrigem = (a.pasto ?? '').trim().toUpperCase();
-      return fazendaOrigem == fazendaDestino &&
-          loteOrigem == loteDestino &&
-          pastoOrigem == pastoDestino;
-    }).toList();
+    if (!transferenciaPorInconsistencia) {
+      final semMudanca = _animaisSelecionados.where((a) {
+        final loteOrigem = (a.lote ?? '').trim().toUpperCase();
+        final pastoOrigem = (a.pasto ?? '').trim().toUpperCase();
+        return fazendaOrigem == fazendaDestino &&
+            loteOrigem == loteDestino &&
+            pastoOrigem == pastoDestino;
+      }).toList();
 
-    if (semMudanca.isNotEmpty) {
-      final ids = semMudanca.map((a) => a.cria).join(', ');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Origem e destino não podem ser iguais em tudo (fazenda, lote e pasto). Animal(is): $ids'),
-        ),
-      );
-      return;
+      if (semMudanca.isNotEmpty) {
+        final ids = semMudanca.map((a) => a.cria).join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Origem e destino não podem ser iguais em tudo (fazenda, lote e pasto). Animal(is): $ids'),
+          ),
+        );
+        return;
+      }
     }
 
     // Quando a inconsistência já foi explicitamente confirmada no prompt anterior,
     // não bloqueamos o salvamento com uma segunda confirmação.
-    if (!_isInconsistency) {
+    if (!transferenciaPorInconsistencia) {
       final confirmar = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
@@ -286,7 +237,7 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
         fazendaDestino: _fazendaDestino!,
         loteDestino: _loteDestino!,
         pastoDestino: _pastoDestino!,
-        isInconsistency: _isInconsistency,
+        isInconsistency: transferenciaPorInconsistencia,
         dataTransferencia: dataTransferencia,
         usuarioId: AppSession.usuarioId!,
       );
@@ -493,51 +444,55 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
                   ),
                   child: _animaisSelecionados.isEmpty
                       ? const Center(child: Text('Nenhum animal selecionado.'))
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            columns: const [
-                              DataColumn(label: Text('ID')),
-                              DataColumn(label: Text('Fazenda Origem')),
-                              DataColumn(label: Text('Fazenda Destino')),
-                              DataColumn(label: Text('Lote Origem')),
-                              DataColumn(label: Text('Lote Destino')),
-                              DataColumn(label: Text('Pasto Origem')),
-                              DataColumn(label: Text('Pasto Destino')),
-                              DataColumn(label: Text('')),
-                            ],
-                            rows: _animaisSelecionados
-                                .map(
-                                  (a) => DataRow(
-                                    cells: [
-                                      DataCell(Text(a.cria)),
-                                      DataCell(Text(a.fazenda,
-                                          style: const TextStyle(
-                                              color: Colors.black))),
-                                      DataCell(Text(_fazendaDestino ?? '-',
-                                          style: const TextStyle(
-                                              color: Colors.black))),
-                                      DataCell(Text(a.lote ?? '-')),
-                                      DataCell(Text(_loteDestino ?? '-')),
-                                      DataCell(Text(a.pasto ?? '-',
-                                          style: const TextStyle(
-                                              color: Colors.black))),
-                                      DataCell(Text(_pastoDestino ?? '-',
-                                          style: const TextStyle(
-                                              color: Colors.black))),
-                                      DataCell(
-                                        IconButton(
-                                          tooltip: 'Remover animal',
-                                          icon: const Icon(Icons.close,
-                                              color: Colors.red),
-                                          onPressed: () =>
-                                              _removerAnimalSelecionado(a),
-                                        ),
+                      : Scrollbar(
+                          child: SingleChildScrollView(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('ID')),
+                                  DataColumn(label: Text('Fazenda Origem')),
+                                  DataColumn(label: Text('Fazenda Destino')),
+                                  DataColumn(label: Text('Lote Origem')),
+                                  DataColumn(label: Text('Lote Destino')),
+                                  DataColumn(label: Text('Pasto Origem')),
+                                  DataColumn(label: Text('Pasto Destino')),
+                                  DataColumn(label: Text('')),
+                                ],
+                                rows: _animaisSelecionados
+                                    .map(
+                                      (a) => DataRow(
+                                        cells: [
+                                          DataCell(Text(a.cria)),
+                                          DataCell(Text(a.fazenda,
+                                              style: const TextStyle(
+                                                  color: Colors.black))),
+                                          DataCell(Text(_fazendaDestino ?? '-',
+                                              style: const TextStyle(
+                                                  color: Colors.black))),
+                                          DataCell(Text(a.lote ?? '-')),
+                                          DataCell(Text(_loteDestino ?? '-')),
+                                          DataCell(Text(a.pasto ?? '-',
+                                              style: const TextStyle(
+                                                  color: Colors.black))),
+                                          DataCell(Text(_pastoDestino ?? '-',
+                                              style: const TextStyle(
+                                                  color: Colors.black))),
+                                          DataCell(
+                                            IconButton(
+                                              tooltip: 'Remover animal',
+                                              icon: const Icon(Icons.close,
+                                                  color: Colors.red),
+                                              onPressed: () =>
+                                                  _removerAnimalSelecionado(a),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
                           ),
                         ),
                 ),
@@ -650,7 +605,7 @@ class _SelecionarAnimaisModalPageState
                 controller: _search,
                 onChanged: (v) => _load(q: v),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar por CRIA',
+                  labelText: 'Pesquisar Animal',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),

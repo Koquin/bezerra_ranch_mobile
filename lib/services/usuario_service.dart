@@ -55,7 +55,7 @@ class UsuarioService {
       'login': login.trim(),
       'senha_hash': hashSenha(senha),
       'ativo': ativo ? 1 : 0,
-      'cria_prefixo': prefixo.trim().toUpperCase(),
+      'cria_prefixo': prefixo.toUpperCase(),
       'cria_inicio': inicio,
       'cria_max': maximo,
       'is_admin': isAdmin ? 1 : 0,
@@ -69,7 +69,7 @@ class UsuarioService {
     print(
         'Entrou no existeFaixaSobreposta do UsuarioService, prefixo=$prefixo inicio=$inicio maximo=$maximo excludeId=$excludeId');
     final db = await AppDb.getDb();
-    final up = prefixo.trim().toUpperCase();
+    final up = prefixo.toUpperCase();
 
     final todosUsuarios = await db.query('usuario');
     print('TODOS OS USUARIOS NO BANCO: $todosUsuarios');
@@ -114,7 +114,7 @@ class UsuarioService {
         'nome': nome.trim(),
         'login': login.trim(),
         'ativo': ativo ? 1 : 0,
-        'cria_prefixo': prefixo.trim().toUpperCase(),
+        'cria_prefixo': prefixo.toUpperCase(),
         'cria_inicio': inicio,
         'cria_max': maximo,
         'is_admin': isAdmin ? 1 : 0,

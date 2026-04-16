@@ -20,6 +20,9 @@ class SyncController {
   Future<void> sincronizarTransferencias() =>
       SupabaseSyncService.sincronizarModuloTransferencias();
 
+  Future<void> sincronizarUsuarios() =>
+      SupabaseSyncService.sincronizarModuloUsuarios();
+
   Future<void> baixarUsuarios() => SupabaseSyncService.baixarUsuarios();
 
   Future<void> baixarSolicitacoes() => SupabaseSyncService.baixarSolicitacoes();

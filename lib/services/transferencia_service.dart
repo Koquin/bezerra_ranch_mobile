@@ -48,9 +48,14 @@ class TransferenciaService {
 
     await db.transaction((txn) async {
       for (final animal in animais) {
+        final origemRealAnimal = animal.fazenda.trim();
+        final fazendaOrigemLog = isInconsistency && origemRealAnimal.isNotEmpty
+            ? origemRealAnimal
+            : fazendaOrigem;
+
         final log = TransferenciaLog(
           animalId: animal.id!,
-          fazendaOrigem: fazendaOrigem,
+          fazendaOrigem: fazendaOrigemLog,
           fazendaDestino: fazendaDestino,
           loteOrigem: animal.lote,
           loteDestino: loteDestino,

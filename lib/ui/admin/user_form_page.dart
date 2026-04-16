@@ -61,11 +61,11 @@ class _UserFormPageState extends State<UserFormPage> {
 
   String? _valPrefixo(String? v) {
     print('Entrou no _valPrefixo do UserFormPage, v=$v');
-    final s = (v ?? '').trim();
+    final s = (v ?? '');
     if (s.isEmpty) return 'Informe o prefixo';
     if (s.length > 10) return 'Use no máximo 10 caracteres';
-    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(s)) {
-      return 'Use apenas letras e números';
+    if (!RegExp(r'^[A-Za-z0-9 ]+$').hasMatch(s)) {
+      return 'Use apenas letras, números e espaço';
     }
     return null;
   }
@@ -85,7 +85,7 @@ class _UserFormPageState extends State<UserFormPage> {
 
     final nome = _nome.text.trim();
     final login = _login.text.trim();
-    final prefixo = _prefixo.text.trim().toUpperCase();
+    final prefixo = _prefixo.text.toUpperCase();
     final inicio = int.parse(_inicio.text.trim());
     final maximo = int.parse(_maximo.text.trim());
 

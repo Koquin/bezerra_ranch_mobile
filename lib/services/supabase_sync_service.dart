@@ -158,6 +158,18 @@ class SupabaseSyncService {
     print('✅ Sincronização do módulo Transferências concluída');
   }
 
+  static Future<void> sincronizarModuloUsuarios() async {
+    print('🔄 Iniciando sincronização do módulo: Usuários');
+    if (await _prepararSincronizacaoComReset()) return;
+
+    await baixarUsuarios();
+    if (AppSession.isAdmin) {
+      await sincronizarUsuarios();
+    }
+
+    print('✅ Sincronização do módulo Usuários concluída');
+  }
+
   // Sincronizar usuários
   static Future<void> sincronizarUsuarios() async {
     print('📤 Sincronizando usuários...');

@@ -570,7 +570,7 @@ class _MorteFormPageState extends State<MorteFormPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    const Text('Fotos da Morte:',
+                    const Text('Fotos da Baixa:',
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     SingleChildScrollView(

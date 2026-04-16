@@ -81,6 +81,14 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
 
   final _fmt = DateFormat('dd/MM/yyyy');
 
+  String? _obterPrefixoFaixaSessao() {
+    final prefixo = AppSession.criaPrefixo;
+    if (prefixo == null || prefixo.isEmpty) return null;
+    // Mantemos exatamente como vem da sessão para diferenciar, por exemplo,
+    // "LFFJ" de "LFFJ ".
+    return prefixo;
+  }
+
   String? _normalizeRacaSelection(String? value) {
     final v = value?.trim();
     if (v == null || v.isEmpty) return null;
@@ -171,11 +179,15 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
       _locationLongitude = n.locationLongitude;
     } else {
       _sexo.text = 'M';
+      _raca.text = _racaOptions.first;
+      _pelagem.text = _pelagemOptions.first;
       _travarDataNascimento = AppSession.travaDataNascimento;
       if (AppSession.fazendaSelecionada != null) {
         _fazenda.text = AppSession.fazendaSelecionada!;
       } else if (AppSession.lockedFazenda != null) {
         _fazenda.text = AppSession.lockedFazenda!;
+      } else if (kFazendas.isNotEmpty) {
+        _fazenda.text = kFazendas.first;
       }
       if (AppSession.lockedDataNascimento != null) {
         _dataNasc = AppSession.lockedDataNascimento!;
@@ -208,12 +220,26 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
   Future<void> _gerarCriaAoAbrir() async {
     print('Entrou no _gerarCriaAoAbrir do NascimentoFormPage');
     try {
-      final proxima = await _controller.gerarProximaCriaPorUsuario(
-        usuarioId: AppSession.usuarioId!,
-        prefixo: AppSession.criaPrefixo!,
-        inicio: AppSession.criaInicio!,
-        maximo: AppSession.criaMax!,
+      final prefixo = _obterPrefixoFaixaSessao();
+      final inicio = AppSession.criaInicio;
+      final maximo = AppSession.criaMax;
+      if (prefixo == null || inicio == null || maximo == null) {
+        throw Exception('Faixa do usuário não configurada na sessão.');
+      }
+
+      final ultimoNumero = await _controller.obterUltimoNumeroUsadoPorPrefixo(
+        prefixo: prefixo,
       );
+      final primeiroDisponivel =
+          await _controller.obterPrimeiroNumeroDisponivelPorPrefixo(
+        prefixo: prefixo,
+        inicio: inicio,
+        maximo: maximo,
+      );
+      print(
+          '[NascimentoFormPage._gerarCriaAoAbrir] prefixo="$prefixo" ultimoNumero=$ultimoNumero primeiroDisponivel=$primeiroDisponivel');
+
+      final proxima = '$prefixo$primeiroDisponivel';
 
       if (!mounted) return;
       setState(() {
@@ -364,7 +390,7 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
     msg.writeln('Solicitação (áudio) - dados do lançamento:');
     msg.writeln('CRIA: ${_cria.text}');
     msg.writeln('ID CRIA: ${_idCria.text}');
-    msg.writeln('ID VACA (mãe): ${_mae.text}');
+    msg.writeln('ID VACA: ${_mae.text}');
     msg.writeln('Sexo: ${_sexo.text}');
     msg.writeln('Raça: ${_raca.text}');
     msg.writeln('Pelagem: ${_pelagem.text}');
@@ -395,6 +421,21 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
       await _gerarCriaAoAbrir();
       if (!mounted) return;
       if (_idCria.text.trim().isEmpty && _cria.text.trim().isEmpty) return;
+    }
+
+    final prefixoSessao = _obterPrefixoFaixaSessao();
+    final criaAtual =
+        _cria.text.trim().isEmpty ? _idCria.text.trim() : _cria.text.trim();
+    if (prefixoSessao == null || !criaAtual.startsWith(prefixoSessao)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'ID CRIA inválido para sua faixa. Prefixo permitido: "$prefixoSessao"'),
+        ),
+      );
+      await _gerarCriaAoAbrir();
+      return;
     }
 
     final maeValida = await _validarMaeDaSessao(limparSeInvalida: true);
@@ -615,8 +656,10 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
                     child: TextFormField(
                       controller: _mae,
                       decoration: const InputDecoration(
-                          labelText: 'ID VACA (mãe)',
-                          hintText: 'Identificação da vaca mãe'),
+                        labelText: 'ID VACA',
+                        hintText: 'Ex: 1234',
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                      ),
                       enabled: !widget.readOnly,
                       onFieldSubmitted: widget.readOnly
                           ? null
@@ -689,18 +732,35 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
               ),
               const SizedBox(height: 12),
 
-              // Row 5: Pelagem | Peso | Foto | Áudio(WhatsApp)
+              // Row 5: Pelagem | Peso | Mídia
               Row(
                 children: [
                   Expanded(
                     flex: 2,
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _normalizePelagemSelection(_pelagem.text),
                       decoration: const InputDecoration(labelText: 'Pelagem'),
+                      selectedItemBuilder: (context) => _pelagemOptions
+                          .map(
+                            (p) => Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                p,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
                       items: _pelagemOptions
                           .map((p) => DropdownMenuItem<String>(
                                 value: p,
-                                child: Text(p),
+                                child: Text(
+                                  p,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ))
                           .toList(),
                       onChanged: widget.readOnly
@@ -713,36 +773,46 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
+                    flex: 1,
                     child: TextFormField(
                       controller: _peso,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(labelText: 'Peso'),
+                      decoration: const InputDecoration(
+                        labelText: 'Peso',
+                        hintText: 'Ex: 39',
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                      ),
                       enabled: !widget.readOnly,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 1),
                   Expanded(
                     child: Column(
                       children: [
-                        IconButton(
-                          onPressed: widget.readOnly ? null : _takePhoto,
-                          icon: const Icon(Icons.camera_alt),
+                        PopupMenuButton<String>(
+                          enabled: !widget.readOnly,
+                          onSelected: (value) async {
+                            if (value == 'foto') {
+                              await _takePhoto();
+                            } else if (value == 'audio') {
+                              await _sendAudioToAdmin();
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'foto',
+                              child: Text('Foto'),
+                            ),
+                            PopupMenuItem(
+                              value: 'audio',
+                              child: Text('Áudio'),
+                            ),
+                          ],
+                          child: const Icon(Icons.more_horiz),
                         ),
-                        const Text('foto'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        IconButton(
-                          onPressed: widget.readOnly ? null : _sendAudioToAdmin,
-                          icon: const Icon(Icons.mic),
-                        ),
-                        const Text('audio'),
+                        const Text('Mídia'),
                       ],
                     ),
                   ),
@@ -754,7 +824,10 @@ class _NascimentoFormPageState extends State<NascimentoFormPage> {
               TextFormField(
                 controller: _obs,
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Descrição'),
+                decoration: const InputDecoration(
+                  labelText: 'Descrição',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
                 enabled: !widget.readOnly,
               ),
               const SizedBox(height: 12),

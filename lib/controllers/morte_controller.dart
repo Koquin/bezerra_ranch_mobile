@@ -1,4 +1,5 @@
 import '../models/morte.dart';
+import '../session/app_session.dart';
 import '../services/morte_service.dart';
 
 class MorteController {
@@ -28,6 +29,10 @@ class MorteController {
     required int nascimentoId,
     required int morteId,
   }) async {
+    if (!AppSession.isAdmin) {
+      throw StateError('Apenas administradores podem excluir baixas.');
+    }
+
     await _morteService.deletarPorNascimento(
       nascimentoId: nascimentoId,
       morteId: morteId,

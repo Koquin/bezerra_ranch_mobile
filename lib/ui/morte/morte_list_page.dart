@@ -142,6 +142,16 @@ class _MorteListPageState extends State<MorteListPage> {
   }
 
   Future<void> _deletarMorte(_BaixaListItem item) async {
+    if (!AppSession.isAdmin) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Apenas administradores podem deletar baixas.'),
+        ),
+      );
+      return;
+    }
+
     final morte = item.baixa;
     final animal = item.animal;
     final animalLabel = animal?.cria ?? 'ID ${morte.nascimentoId}';
@@ -287,7 +297,7 @@ class _MorteListPageState extends State<MorteListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar por CRIA',
+                  labelText: 'Pesquisar Animal',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),
@@ -366,13 +376,14 @@ class _MorteListPageState extends State<MorteListPage> {
                                     value: 'editar',
                                     child: Text('Editar'),
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'deletar',
-                                    child: Text(
-                                      'Deletar',
-                                      style: TextStyle(color: Colors.red),
+                                  if (AppSession.isAdmin)
+                                    const PopupMenuItem(
+                                      value: 'deletar',
+                                      child: Text(
+                                        'Deletar',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ), // end PopupMenuButton
                               onTap: () async {
@@ -467,7 +478,7 @@ class _SelecionarAnimalPageState extends State<_SelecionarAnimalPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar por CRIA',
+                  labelText: 'Pesquisar Animal',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),

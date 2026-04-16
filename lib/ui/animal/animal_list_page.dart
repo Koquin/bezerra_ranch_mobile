@@ -204,7 +204,7 @@ class _AnimalListPageState extends State<AnimalListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar por CRIA',
+                  labelText: 'Pesquisar Animal',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),

@@ -245,6 +245,13 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
         nomeModulo: 'Transferências',
         acao: _syncController.sincronizarTransferencias,
       );
+      return;
+    }
+    if (value == 'usuarios') {
+      await _sincronizarModulo(
+        nomeModulo: 'Usuários',
+        acao: _syncController.sincronizarUsuarios,
+      );
     }
   }
 
@@ -366,28 +373,39 @@ class _HomeRotinasPageState extends State<HomeRotinasPage> {
                   tooltip: 'Sincronizar com Nuvem',
                   icon: const Icon(Icons.cloud_upload),
                   onSelected: _onSyncOptionSelected,
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'total',
-                      child: Text('Sincronização total'),
-                    ),
-                    PopupMenuItem(
-                      value: 'animais',
-                      child: Text('Sincronizar Animais'),
-                    ),
-                    PopupMenuItem(
-                      value: 'nascimentos',
-                      child: Text('Sincronizar Nascimento'),
-                    ),
-                    PopupMenuItem(
-                      value: 'baixas',
-                      child: Text('Sincronizar Baixas'),
-                    ),
-                    PopupMenuItem(
-                      value: 'transferencias',
-                      child: Text('Sincronizar Transferências'),
-                    ),
-                  ],
+                  itemBuilder: (_) {
+                    final items = <PopupMenuEntry<String>>[
+                      const PopupMenuItem(
+                        value: 'total',
+                        child: Text('Sincronização total'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'animais',
+                        child: Text('Sincronizar Animais'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'nascimentos',
+                        child: Text('Sincronizar Nascimento'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'baixas',
+                        child: Text('Sincronizar Baixas'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'transferencias',
+                        child: Text('Sincronizar Transferências'),
+                      ),
+                    ];
+                    if (AppSession.isAdmin) {
+                      items.add(
+                        const PopupMenuItem(
+                          value: 'usuarios',
+                          child: Text('Sincronizar Usuários'),
+                        ),
+                      );
+                    }
+                    return items;
+                  },
                 ),
           IconButton(
             tooltip: 'Sair',

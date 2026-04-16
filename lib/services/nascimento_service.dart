@@ -2,6 +2,15 @@ import 'app_db.dart';
 import '../models/nascimento.dart';
 
 class NascimentoService {
+  int? _extractNumeroFromCria({
+    required String cria,
+    required String prefixo,
+  }) {
+    if (!cria.startsWith(prefixo)) return null;
+    final sufixo = cria.substring(prefixo.length);
+    return int.tryParse(sufixo);
+  }
+
   Future<List<Nascimento>> list({String? q}) async {
     print('[NascimentoService.list] q=$q');
     final db = await AppDb.getDb();
@@ -159,6 +168,78 @@ class NascimentoService {
     final ultima = (rows.first['cria'] as String).trim();
     final numStr = ultima.replaceFirst(prefixo, '');
     return int.tryParse(numStr) ?? -1;
+  }
+
+  Future<int> obterUltimoNumeroUsadoPorPrefixo({
+    required String prefixo,
+  }) async {
+    print(
+        '[NascimentoService.obterUltimoNumeroUsadoPorPrefixo] prefixo="$prefixo"');
+    final db = await AppDb.getDb();
+
+    final rows = await db.rawQuery(
+      '''
+      SELECT cria FROM animal
+      WHERE cria LIKE ?
+      ''',
+      ['$prefixo%'],
+    );
+
+    var maior = -1;
+    for (final row in rows) {
+      final cria = row['cria']?.toString() ?? '';
+      final numero = _extractNumeroFromCria(cria: cria, prefixo: prefixo);
+      if (numero != null && numero > maior) {
+        maior = numero;
+      }
+    }
+    return maior;
+  }
+
+  Future<int> obterPrimeiroNumeroDisponivelPorPrefixo({
+    required String prefixo,
+    required int inicio,
+    required int maximo,
+  }) async {
+    print(
+        '[NascimentoService.obterPrimeiroNumeroDisponivelPorPrefixo] prefixo="$prefixo" inicio=$inicio maximo=$maximo');
+    final db = await AppDb.getDb();
+
+    final usados = <int>{};
+
+    final animais = await db.rawQuery(
+      '''
+      SELECT cria FROM animal
+      WHERE cria LIKE ?
+      ''',
+      ['$prefixo%'],
+    );
+    for (final row in animais) {
+      final cria = row['cria']?.toString() ?? '';
+      final numero = _extractNumeroFromCria(cria: cria, prefixo: prefixo);
+      if (numero != null) usados.add(numero);
+    }
+
+    final logs = await db.rawQuery(
+      '''
+      SELECT cria FROM nascimento_log
+      WHERE cria LIKE ?
+      ''',
+      ['$prefixo%'],
+    );
+    for (final row in logs) {
+      final cria = row['cria']?.toString() ?? '';
+      final numero = _extractNumeroFromCria(cria: cria, prefixo: prefixo);
+      if (numero != null) usados.add(numero);
+    }
+
+    for (var numero = inicio; numero <= maximo; numero++) {
+      if (!usados.contains(numero)) {
+        return numero;
+      }
+    }
+
+    throw Exception('LIMITE_ATINGIDO');
   }
 
   Future<int> calcularRestantes({

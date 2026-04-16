@@ -188,6 +188,16 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
   }
 
   Future<void> _deletarNascimento(Nascimento n) async {
+    if (!AppSession.isAdmin) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Apenas administradores podem deletar animais.'),
+        ),
+      );
+      return;
+    }
+
     print('[NascimentoListPage._deletarNascimento] id=${n.id} cria=${n.cria}');
     final confirmar = await showDialog<bool>(
       context: context,
@@ -325,7 +335,7 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
                 controller: _search,
                 onChanged: (value) => _load(q: value),
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar por CRIA',
+                  labelText: 'Pesquisar Animal',
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search),
                     onPressed: () => _load(q: _search.text),
@@ -399,13 +409,14 @@ class _NascimentoListPageState extends State<NascimentoListPage> {
                                     value: 'editar',
                                     child: Text('Editar'),
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'deletar',
-                                    child: Text(
-                                      'Deletar',
-                                      style: TextStyle(color: Colors.red),
+                                  if (AppSession.isAdmin)
+                                    const PopupMenuItem(
+                                      value: 'deletar',
+                                      child: Text(
+                                        'Deletar',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ),
                               onTap: () async {
