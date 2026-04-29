@@ -25,7 +25,6 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
   String? _fazendaDestino;
   String? _loteDestino;
   String? _pastoDestino;
-  bool _isInconsistency = false;
 
   bool _saving = false;
   List<Nascimento> _animaisSelecionados = [];
@@ -85,30 +84,26 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
     });
   }
 
-  Future<bool> _tratarInconsistenciasFazendaOrigem() async {
-    final origemSelecionada = (_fazendaOrigem ?? '').trim();
-    if (origemSelecionada.isEmpty) return false;
-
-    final inconsistentes = _animaisSelecionados
-        .where((a) =>
-            a.fazenda.trim().toUpperCase() != origemSelecionada.toUpperCase())
-        .toList();
-
+  Future<bool> _confirmarCorrecaoInconsistencias({
+    required List<Nascimento> inconsistentes,
+    required String origemOriginal,
+  }) async {
     if (inconsistentes.isEmpty) return true;
 
     final ids = inconsistentes.map((a) => a.cria).join(', ');
-    final titulo = inconsistentes.length == 1
-        ? 'Fazenda de origem divergente'
-        : 'Inconsistências encontradas';
-    final conteudo = inconsistentes.length == 1
-        ? 'O animal $ids não está na fazenda de origem selecionada.\n\nDeseja corrigir automaticamente a inconsistência e transferir para "$origemSelecionada"?'
-        : 'Os animais abaixo não estão na fazenda de origem selecionada:\n$ids\n\nDeseja corrigir automaticamente as inconsistências e transferir todos para "$origemSelecionada"?';
+    final plural = inconsistentes.length > 1;
 
-    final corrigir = await showDialog<bool>(
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(titulo),
-        content: Text(conteudo),
+        title: Text(
+          plural ? 'Inconsistências detectadas' : 'Inconsistência detectada',
+        ),
+        content: Text(
+          plural
+              ? 'Os animais abaixo estão fora da fazenda de origem informada:\n$ids\n\nO sistema vai executar em 2 etapas:\n1) Transferir inconsistências uma a uma para "$origemOriginal" usando a origem real de cada animal.\n2) Após isso, transferir todos os animais para o destino original informado.\n\nDeseja continuar?'
+              : 'O animal $ids está fora da fazenda de origem informada.\n\nO sistema vai executar em 2 etapas:\n1) Corrigir a inconsistência usando a origem real do animal e destino "$origemOriginal".\n2) Depois transferir normalmente para o destino original informado.\n\nDeseja continuar?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -116,33 +111,16 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Corrigir e transferir'),
+            child: const Text('Continuar'),
           ),
         ],
       ),
     );
 
-    if (corrigir != true) {
-      return false;
-    }
-
-    if (!mounted) return false;
-    setState(() {
-      _isInconsistency = true;
-      _fazendaDestino = origemSelecionada;
-    });
-
-    return true;
+    return confirmar == true;
   }
 
   Future<void> _confirmarTransferencia() async {
-    _isInconsistency = false;
-
-    final origemSelecionadaUpper = (_fazendaOrigem ?? '').trim().toUpperCase();
-    final temInconsistenciaOrigem = _animaisSelecionados.any(
-      (a) => a.fazenda.trim().toUpperCase() != origemSelecionadaUpper,
-    );
-
     if (_animaisSelecionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione ao menos 1 animal.')),
@@ -172,72 +150,86 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
       return;
     }
 
-    final okInconsistencia = await _tratarInconsistenciasFazendaOrigem();
-    if (!okInconsistencia) return;
-    if (!mounted) return;
+    final fazendaOrigemOriginal = (_fazendaOrigem ?? '').trim().toUpperCase();
+    final fazendaDestinoOriginal = (_fazendaDestino ?? '').trim().toUpperCase();
+    final loteDestinoOriginal = (_loteDestino ?? '').trim().toUpperCase();
+    final pastoDestinoOriginal = (_pastoDestino ?? '').trim().toUpperCase();
 
-    final transferenciaPorInconsistencia =
-        _isInconsistency || temInconsistenciaOrigem;
+    final inconsistentes = _animaisSelecionados
+        .where((a) => a.fazenda.trim().toUpperCase() != fazendaOrigemOriginal)
+        .toList();
 
-    final fazendaOrigem = (_fazendaOrigem ?? '').trim().toUpperCase();
-    final fazendaDestino = (_fazendaDestino ?? '').trim().toUpperCase();
-    final loteDestino = (_loteDestino ?? '').trim().toUpperCase();
-    final pastoDestino = (_pastoDestino ?? '').trim().toUpperCase();
+    final semMudanca = _animaisSelecionados.where((a) {
+      final loteOrigem = (a.lote ?? '').trim().toUpperCase();
+      final pastoOrigem = (a.pasto ?? '').trim().toUpperCase();
+      return fazendaOrigemOriginal == fazendaDestinoOriginal &&
+          loteOrigem == loteDestinoOriginal &&
+          pastoOrigem == pastoDestinoOriginal;
+    }).toList();
 
-    if (!transferenciaPorInconsistencia) {
-      final semMudanca = _animaisSelecionados.where((a) {
-        final loteOrigem = (a.lote ?? '').trim().toUpperCase();
-        final pastoOrigem = (a.pasto ?? '').trim().toUpperCase();
-        return fazendaOrigem == fazendaDestino &&
-            loteOrigem == loteDestino &&
-            pastoOrigem == pastoDestino;
-      }).toList();
-
-      if (semMudanca.isNotEmpty) {
-        final ids = semMudanca.map((a) => a.cria).join(', ');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Origem e destino não podem ser iguais em tudo (fazenda, lote e pasto). Animal(is): $ids'),
-          ),
-        );
-        return;
-      }
-    }
-
-    // Quando a inconsistência já foi explicitamente confirmada no prompt anterior,
-    // não bloqueamos o salvamento com uma segunda confirmação.
-    if (!transferenciaPorInconsistencia) {
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Confirmar transferência'),
+    if (semMudanca.isNotEmpty && inconsistentes.isEmpty) {
+      final ids = semMudanca.map((a) => a.cria).join(', ');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
           content: Text(
-              'Confirmar transferência de ${_animaisSelecionados.length} animal(is) para ${_fazendaDestino ?? '-'}, lote ${_loteDestino ?? '-'} e pasto ${_pastoDestino ?? '-'}?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirmar'),
-            ),
-          ],
+              'Origem e destino não podem ser iguais em tudo (fazenda, lote e pasto). Animal(is): $ids'),
         ),
       );
-      if (confirmar != true) return;
+      return;
     }
+
+    final confirmouInconsistencia = await _confirmarCorrecaoInconsistencias(
+      inconsistentes: inconsistentes,
+      origemOriginal: fazendaOrigemOriginal,
+    );
+    if (!confirmouInconsistencia) return;
+    if (!mounted) return;
+
+    final confirmarGeral = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirmar transferência'),
+        content: Text(
+            'Confirmar transferência de ${_animaisSelecionados.length} animal(is) para $fazendaDestinoOriginal, lote $loteDestinoOriginal e pasto $pastoDestinoOriginal?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmarGeral != true) return;
 
     setState(() => _saving = true);
     try {
+      for (final animal in inconsistentes) {
+        final loteAtual = (animal.lote ?? '').trim().toUpperCase();
+        final pastoAtual = (animal.pasto ?? '').trim().toUpperCase();
+
+        await _transferenciaController.registrarTransferencias(
+          animais: [animal],
+          fazendaOrigem: animal.fazenda.trim().toUpperCase(),
+          fazendaDestino: fazendaOrigemOriginal,
+          loteDestino: loteAtual,
+          pastoDestino: pastoAtual,
+          isInconsistency: true,
+          dataTransferencia: dataTransferencia,
+          usuarioId: AppSession.usuarioId!,
+        );
+      }
+
       await _transferenciaController.registrarTransferencias(
         animais: _animaisSelecionados,
-        fazendaOrigem: _fazendaOrigem!,
-        fazendaDestino: _fazendaDestino!,
-        loteDestino: _loteDestino!,
-        pastoDestino: _pastoDestino!,
-        isInconsistency: transferenciaPorInconsistencia,
+        fazendaOrigem: fazendaOrigemOriginal,
+        fazendaDestino: fazendaDestinoOriginal,
+        loteDestino: loteDestinoOriginal,
+        pastoDestino: pastoDestinoOriginal,
+        isInconsistency: false,
         dataTransferencia: dataTransferencia,
         usuarioId: AppSession.usuarioId!,
       );
@@ -245,8 +237,9 @@ class _TransferenciaPageState extends State<TransferenciaPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Transferência confirmada de ${_animaisSelecionados.length} animal(is) para ${_fazendaDestino!}, ${_loteDestino!}, ${_pastoDestino!}.'),
+          content: Text(inconsistentes.isEmpty
+              ? 'Transferência confirmada de ${_animaisSelecionados.length} animal(is) para $fazendaDestinoOriginal, $loteDestinoOriginal, $pastoDestinoOriginal.'
+              : 'Transferência concluída em 2 etapas. Inconsistências corrigidas: ${inconsistentes.length}. Transferência final aplicada para ${_animaisSelecionados.length} animal(is).'),
         ),
       );
 
